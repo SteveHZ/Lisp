@@ -31,8 +31,8 @@
 		(next-num 0) ; to hold each further number
 		(next-fib (build-fib)))
 
-	(my-while (< (setf next-num (funcall next-fib))
-				 4000000)
+	(my-while (> 4000000
+				 (setf next-num (funcall next-fib)))
 	  (if (evenp next-num)
 		  (incf sum next-num)))
 	sum))

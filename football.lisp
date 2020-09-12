@@ -2085,7 +2085,6 @@
 	(dolist (series-pair series-list)
 	  (destructuring-bind (series series-name) series-pair
 
-
 		(mapcar #'(lambda (result result-fn odds-fn)
 					(multiple-value-bind (stake returns)
 						(calc-team-series team series #'home-aways result-fn odds-fn)
