@@ -112,9 +112,6 @@
   (* (/ (- 100 fraction) 100)
      amount))
 
-(defun calc-percent (stake return)
-  (my-round (* 100 (/ return stake)) 0.01))
-
 (defun fib (n)
   (cond ((equal n 0) 1)
         ((equal n 1) 1)
@@ -317,4 +314,7 @@
   (and (zerop (mod y 4))
 	   (or (zerop (mod y 400))
 		   (not (zerop (mod y 100))))))
+
+(defun calc-percent (stake return)
+  (my-round (* 100 (/ return stake)) 0.01))
 
