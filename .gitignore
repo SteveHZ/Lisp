@@ -1,0 +1,20 @@
+/org
+/Downloads
+/PCL
+/data
+/init files
+/Notes
+*.lisp~
+*.org
+*.cl
+*.fas
+*.fasl
+*.wx64fsl
+*.db
+*.csv
+*.json
+*.asd
+*.lib
+*.pdf
+*.html
+*.dat
