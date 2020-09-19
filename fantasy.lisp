@@ -1,3 +1,4 @@
+
 ;; fantasy.lisp 20/06/20
 
 (defpackage :fantasy
@@ -74,7 +75,7 @@
 		  (price player) (name player) (team player)
 		  (total-points player) (points-per-game player)))
 
-(defun show-all (list &key (key #'price))
+(defun show-all (list &key key)
   (mapcar #'(lambda (player)
 			  (show-info player))
 		  (sort list #'> :key key)))
