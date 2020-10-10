@@ -24,11 +24,12 @@
     ("e1" "Championship")
     ("e2" "League One")
     ("e3" "League Two")
-    ("ec" "Conference")
+;;    ("ec" "Conference")
     ("sc0" "Scots Premier")
-    ("sc1" "Scots Championship")
-    ("sc2" "Scots League One")
-    ("sc3" "Scots League Two")))
+;;    ("sc1" "Scots Championship")
+;;    ("sc2" "Scots League One")
+;;    ("sc3" "Scots League Two")
+	))
 
 (defparameter *summer-leagues*
   '(("swe" "Swedish League")
@@ -122,12 +123,14 @@
 ;;
 
 (defun say-game (game)
-;;  (format t "~%~{~a ~10t~a ~30t v ~a ~54t~a-~a ~a ~5*~}" game) ;; uk
-  (format t "~%~{~a ~10t~a ~30t v ~a ~54t~a-~a ~a ~3*~}" game))  ;; summer
+  (if (equal *leagues* *uk-leagues*)
+	  (format t "~%~{~a ~10t~a ~30t v ~a ~54t~a-~a ~a ~5*~}" game)    ;; uk
+	  (format t "~%~{~a ~10t~a ~30t v ~a ~54t~a-~a ~a ~3*~}" game)))  ;; summer
 
 (defun say-game-odds (game)
-;;  (format t "~%~{~a ~10t~a ~30t  v ~a ~54t~a-~a  ~a ~62t~a ~68t~a ~74t~a   ~84t~a ~92t~a~}" game) ;;uk
-  (format t "~%~{~a ~10t~a ~30t  v ~a ~54t~a-~a  ~a ~62t~a ~68t~a ~74t~a~}" game))  ;; summer
+  (if (equal *leagues* *uk-leagues*)
+	  (format t "~%~{~a ~10t~a ~30t  v ~a ~54t~a-~a  ~a ~62t~a ~68t~a ~74t~a   ~84t~a ~92t~a~}" game) ;;uk
+	  (format t "~%~{~a ~10t~a ~30t  v ~a ~54t~a-~a  ~a ~62t~a ~68t~a ~74t~a~}" game)))               ;; summer 
 
 (defun say (&optional (games *db*))
   (mapcar #'(lambda (game)
@@ -400,7 +403,7 @@
 (defun get-league-draws (games-list)
   (get-results "D" games-list))
 
-(defun count-league-results ()
+(defun count-all-league-results ()
   (mapcar #'(lambda (league)
 			  (let* ((league-name (string-upcase (car league)))
 					 (games (get-league league-name))
@@ -1092,6 +1095,7 @@
     (let ((from-str (format nil "~a/~a.csv" from-path (car league)))
           (to-str (format nil "~a/~a.csv" to-path (car league))))
       (format t "~%Writing ~a" to-str)
+(format t "~%cols = ~a" *csv-cols*)
       (transform-csv from-str to-str *csv-cols*))))
 
 (defun update-csv-files ()
@@ -1478,13 +1482,16 @@
 		(let* ((games (reverse (funcall fn team)))
 			   (wins (inner team games 0)))
 		  (when (>= wins 2)
-			(push (list team wins) my-list))))
-	  (sort my-list #'> :key #'second))))
+			(push (list (string-upcase (car league))
+						team
+						wins)
+				  my-list))))
+	  (sort my-list #'> :key #'third))))
 
 (defun unbeaten-table (my-list)
   (format-table t my-list
-				:column-label '("League" "Games")
-				:column-align '(:center :center)))
+				:column-label '("League" "Team" "Games")
+				:column-align '(:center :center :center)))
 
 (defun unbeaten-home-aways ()
   (unbeaten-table
@@ -1502,14 +1509,14 @@
   (unbeaten-table
    (consecutive-games #'homes
 					  #'(lambda (team game)
-						  (declare (ignore team))
+						  (declare (ignore team)) ; work-around
 						  (string-ne (result game) "H")))))
 
 (defun since-last-away-win ()
   (unbeaten-table
    (consecutive-games #'aways
 					  #'(lambda (team game)
-						  (declare (ignore team))
+						  (declare (ignore team)) ; work-around
 						  (string-ne (result game) "A")))))
 
 (defun since-last-draw (&optional (n 10))
@@ -1800,6 +1807,19 @@
 (defun do-series-unders-calc (series games-fn n)
   (first-n n (do-series series games-fn #'series-unders #'series-under-odds)))
 
+(defun do-series-home-wins-calc (series n)
+  (first-n n (do-series series #'homes #'home-away-win-result #'home-away-odds)))
+(defun do-series-away-wins-calc (series n)
+  (first-n n (do-series series #'aways #'home-away-win-result #'home-away-odds)))
+(defun do-series-home-defeats-calc (series n)
+  (first-n n (do-series series #'homes #'home-away-lost-result #'home-away-lost-odds)))
+(defun do-series-away-defeats-calc (series n)
+  (first-n n (do-series series #'aways #'home-away-lost-result #'home-away-lost-odds)))
+(defun do-series-home-draws-calc (series n)
+  (first-n n (do-series series #'homes #'home-away-draw-result #'series-draw-odds)))
+(defun do-series-away-draws-calc (series n)
+  (first-n n (do-series series #'aways #'home-away-draw-result #'series-draw-odds)))
+
 (defun series-table (my-list)
   (format-table t my-list
 				:column-label '("League" "Team" "Stake" "Return" "Percents")
@@ -1846,16 +1866,17 @@
 							(,s4 "s4")
 							(,s5 "s5")))
 
+;; do-series-wins-calc doesnt work - wrong no of args
 (defparameter series-funcs
-  (list #'do-series-wins-list
-		#'do-series-home-wins-list
-		#'do-series-away-wins-list
-		#'do-series-draws-list
-		#'do-series-home-draws-list
-		#'do-series-away-draws-list
-		#'do-series-defeats-list
-		#'do-series-home-defeats-list
-		#'do-series-away-defeats-list))
+  (list #'do-series-wins
+		#'do-series-home-wins-calc
+		#'do-series-away-wins-calc
+		#'do-series-draws
+		#'do-series-home-draws-calc
+		#'do-series-away-draws-calc
+		#'do-series-defeats
+		#'do-series-home-defeats-calc
+		#'do-series-away-defeats-calc))
 
 (defun write-series (series filename)
   (with-open-file (stream filename
@@ -1908,7 +1929,7 @@
   (multiple-value-bind (my-list stake returns)
 	  (do-team-series-calc team s games-fn result-fn odds-fn)
 
-	(format t "~{~{~%~a  ~a ~31tv ~a ~55t~a  ~a  ~5,2f ~5,2f ~5,2f  : ~6,2f ~6,2f~}~}" my-list)
+	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a  ~a  ~5,2f ~5,2f ~5,2f  : ~6,2f ~6,2f~}~}" my-list)
 	(format t "~%~%Stake  : £~,2f~%Return : £~,2f" stake returns)))
 
 (defun do-team-series-wins (team series)
@@ -2086,16 +2107,75 @@
 					(reduce-list league)))
 		  *db*))
 
-(defun count-league-draws ()
-  "Find league with highest average of draws - favs/10 draws strategy"
+(defun count-league-results (result-fn &optional (n 0))
+  "Find league with highest average of results as defined by RESULT-FN"
   (dolist (league *leagues*)
 	(let ((games (get-league (car league)))
 		  (count 0)
 		  (total-games 0))
 	  (dolist (game games)
 		(incf total-games)
-		(if (equal (result game) "D")
+		(if (funcall result-fn game n)
 			(incf count)))
-	  (format t "~%~a : Draws : ~3d Games : ~3d Percent : ~5,2f%"
+	  (format t "~%~a ~5t: Draws : ~3d Games : ~3d Percent : ~5,2f%"
 			  (string-upcase (car league)) count total-games (calc-percent total-games count)))))
+
+;; can expand these to home/away wins,
+;; also favourites then home/away favourites ??
+;; poss use do-season to break down favourites week-by-week
+
+(defun league-draws (game &optional (n 0))
+  (declare (ignore n)) ;; work-around to allow league-overs/unders to pass goals parameter
+  (equal (result game) "D"))
+(defun league-home-wins (game &optional (n 0))
+  (declare (ignore n)) ;; work-around to allow league-overs/unders to pass goals parameter
+  (equal (result game) "H"))
+(defun league-away-wins (game &optional (n 0))
+  (declare (ignore n)) ;; work-around to allow league-overs/unders to pass goals parameter
+  (equal (result game) "A"))
+
+(defun league-overs (game n)
+  (> (+ (home-score game)
+		(away-score game))
+	 n))
+
+(defun league-unders (game n)
+  (not (league-overs game n)))
+
+(defun count-league-draws ()
+  (count-league-results #'league-draws))
+(defun count-league-home-wins ()
+  (count-league-results #'league-home-wins))
+(defun count-league-away-wins ()
+  (count-league-results #'league-away-wins))
+
+(defun count-league-overs (&optional (n 2.5))
+  (count-league-results #'league-overs n))
+(defun count-league-unders (&optional (n 2.5))
+  (count-league-results #'league-unders n))
+
+#|
+DOESNT WORK count-league-results would need to build list then return that
+(defun count-league-draws2 ()
+(multiple-value-bind (league count total-games)
+(count-league-results #'league-draws)
+(format t "~%~a ~5t: Draws : ~3d Games : ~3d Percent : ~5,2f%"
+(string-upcase (car league)) count total-games (calc-percent total-games count))))
+|#
+
+(defun over-under-spread ()
+"Returns count of games with higher over-odds that result in over-results"
+  (dolist (league *uk-leagues*)
+	(let ((games 0)
+		  (wins 0))
+	  (mapcar #'(lambda (game)
+				  (incf games)
+				  (if (and (> (+ (home-score game)
+								 (away-score game))
+							  2)
+						   (> (over-odds game)
+							  (under-odds game)))
+					  (incf wins)))
+			  (get-league (car league)))
+	  (format t "~%~a ~5t: Games : ~3d Wins : ~3d Percent : ~,2f%" (string-upcase (car league)) games wins (calc-percent games wins)))))
 

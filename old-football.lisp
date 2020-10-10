@@ -971,3 +971,88 @@ sub poisson {
 (defun do-series-away-unders (series &optional (n 30))
   (series-table (do-series-away-unders-calc series n)))
 
+(defun count-league-draws ()
+  "Find league with highest average of draws - favs/10 draws strategy"
+  (dolist (league *leagues*)
+	(let ((games (get-league (car league)))
+		  (count 0)
+		  (total-games 0))
+	  (dolist (game games)
+		(incf total-games)
+		(if (equal (result game) "D")
+			(incf count)))
+	  (format t "~%~a : Draws : ~3d Games : ~3d Percent : ~5,2f%"
+			  (string-upcase (car league)) count total-games (calc-percent total-games count)))))
+
+(defun count-league-draws2 ()
+  (mapcar #'(lambda (league)
+			  (let ((count 0)
+					(total-games 0))
+				;; do this as a label ?? -> pass league as param then count total-games as locals ??
+				(mapcar #'(lambda (game)
+							(incf total-games)
+							(if (equal (result game) "D")
+								(incf count)))
+						(get-league (car league)))
+				(format t "~%~a : Draws : ~3d Games : ~3d Percent : ~5,2f%"
+						(string-upcase (car league)) count total-games (calc-percent total-games count))))
+		  *leagues*))
+
+(defun count-league-draws3 ()
+  (labels ((do-league (league)
+			 (let ((count 0)
+				   (total-games 0))
+			   (mapcar #'(lambda (game)
+						   (incf total-games)
+						   (if (equal (result game) "D")
+							   (incf count)))
+					   (get-league (car league)))
+			   (format t "~%~a : Draws : ~3d Games : ~3d Percent : ~5,2f%"
+					   (string-upcase (car league)) count total-games (calc-percent total-games count)))))
+
+	(mapcar #'(lambda (league)
+				(do-league league))
+			*leagues*)))
+
+(defun count-league-draws4 ()
+  (labels ((do-league (league)
+			 (let ((count 0)
+				   (total-games 0))
+			   (dolist (game (get-league (car league)))
+				 (incf total-games)
+				 (if (equal (result game) "D")
+					 (incf count)))
+			   (format t "~%~a : Draws : ~3d Games : ~3d Percent : ~5,2f%"
+					   (string-upcase (car league)) count total-games (calc-percent total-games count)))))
+
+	(mapcar #'(lambda (league)
+				(do-league league))
+			*leagues*)))
+
+(defun count-league-draws ()
+  "Find league with highest average of draws - favs/10 draws strategy"
+  (dolist (league *leagues*)
+	(let ((games (get-league (car league)))
+		  (count 0)
+		  (total-games 0))
+	  (dolist (game games)
+		(incf total-games)
+		(if (equal (result game) "D")
+			(incf count)))
+	  (format t "~%~a : Draws : ~3d Games : ~3d Percent : ~5,2f%"
+			  (string-upcase (car league)) count total-games (calc-percent total-games count)))))
+
+(defun count-league-overs ()
+  "Find league with highest average of over 2.5s"
+  (dolist (league *leagues*)
+	(let ((games (get-league (car league)))
+		  (count 0)
+		  (total-games 0))
+	  (dolist (game games)
+		(incf total-games)
+		(if (> (+ (home-score game)
+				  (away-score game))
+			   2)
+			(incf count)))
+	  (format t "~%~a : Overs : ~3d Games : ~3d Percent : ~5,2f%"
+			  (string-upcase (car league)) count total-games (calc-percent total-games count)))))
