@@ -1056,3 +1056,12 @@ sub poisson {
 			(incf count)))
 	  (format t "~%~a : Overs : ~3d Games : ~3d Percent : ~5,2f%"
 			  (string-upcase (car league)) count total-games (calc-percent total-games count)))))
+
+(defun sort-btts-v1 ()
+  (sort (let ((my-list nil))
+		  (dolist (league *uk-leagues*)
+			(mapcar #'(lambda (team)
+						(push (list team (btts-percent team)) my-list))
+					(get-teams (car league))))
+		  my-list)
+		#'> :key #'second))

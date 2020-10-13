@@ -317,5 +317,6 @@
 		   (not (zerop (mod y 100))))))
 
 (defun calc-percent (stake return)
-  (my-round (* 100 (/ return stake)) 0.01))
+  (if (= stake 0) 0
+	  (my-round (* 100 (/ return stake)) 0.01)))
 

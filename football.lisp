@@ -24,7 +24,7 @@
     ("e1" "Championship")
     ("e2" "League One")
     ("e3" "League Two")
-;;    ("ec" "Conference")
+    ("ec" "Conference")
     ("sc0" "Scots Premier")
 ;;    ("sc1" "Scots Championship")
 ;;    ("sc2" "Scots League One")
@@ -345,6 +345,13 @@
 (defun is-win (team game)
   (home-away-win-result team game))
 
+(defun is-over (game &optional (n 2.5))
+  (< n (+ (home-score game)
+		  (away-score game))))
+
+(defun is-under (game &optional (n 2.5))
+  (not (is-over game n)))
+
 (defun get-over-unders (gt-lt-fn fn team n)
   "Returns a list of games either over or under (specified by GT-LT-FN)
    N goals for TEAM from a list of home/away/both games specified by FN"
@@ -429,6 +436,28 @@
 					 (aways team)
 					 (draws team)))
 	(format t "~%Home Wins : ~a~%Away Wins : ~a~%Draws : ~a" home away draw)))
+
+(defun is-btts (game)
+  (and (> (home-score game) 0)
+	   (> (away-score game) 0)))
+
+(defun not-btts (game)
+  (not (is-btts game)))
+
+
+(defun list-btts (team)
+  (remove-if-not #'(lambda (game)
+					 (is-btts game))
+				 (home-aways team)))
+
+(defun list-not-btts (team)
+  (remove-if-not #'(lambda (game)
+					 (not-btts game))
+				 (home-aways team)))
+
+(defun btts-percent (team)
+  (calc-percent (length (home-aways team))
+				(length (list-btts team))))
 
 ;; ***************************************************************
 
@@ -932,6 +961,23 @@
 (defun top-last-six-draw-percents (&optional (n 10))
   (do-top-percents #'last-six-draws-percentage-return n))
 
+(defun get-btts (league)
+  (let ((my-list nil))
+	(mapcar #'(lambda (team)
+				(push (list team (btts-percent team)) my-list))
+			(get-teams league))
+	my-list))
+
+(defun get-all-btts (leagues)
+  (let ((my-list nil))
+	(dolist (league leagues)
+	  (setf my-list (append my-list (get-btts (car league)))))
+	my-list))
+
+(defun sort-btts (leagues &optional (n 10))
+  (first-n n (sort (get-all-btts leagues)
+				   #'> :key #'second)))
+
 ;; Returns stats
 
 (defun print-header ()
@@ -1095,7 +1141,6 @@
     (let ((from-str (format nil "~a/~a.csv" from-path (car league)))
           (to-str (format nil "~a/~a.csv" to-path (car league))))
       (format t "~%Writing ~a" to-str)
-(format t "~%cols = ~a" *csv-cols*)
       (transform-csv from-str to-str *csv-cols*))))
 
 (defun update-csv-files ()
@@ -1613,13 +1658,6 @@
 (defun count-draws (&optional (n 10))
   (count-games #'home-aways "D" n))
 
-(defun overs (game &optional (n 2.5))
-  (< n (+ (home-score game)
-		  (away-score game))))
-
-(defun unders (game &optional (n 2.5))
-  (not (overs game n)))
-
 (defun count-ou (fn test-fn n goals)
   (count-games-table
    (first-n n (count-season
@@ -1627,18 +1665,18 @@
 					  (funcall test-fn game goals))))))
 
 (defun count-overs (&key (show 10) (goals 2.5))
-  (count-ou #'home-aways #'overs show goals))
+  (count-ou #'home-aways #'is-over show goals))
 (defun count-home-overs (&key (show 10) (goals 2.5))
-  (count-ou #'homes #'overs show goals))
+  (count-ou #'homes #'is-over show goals))
 (defun count-away-overs (&key (show 10) (goals 2.5))
-  (count-ou #'aways #'overs show goals))
+  (count-ou #'aways #'is-over show goals))
 
 (defun count-unders (&key (show 10) (goals 2.5))
-  (count-ou #'home-aways #'unders show goals))
+  (count-ou #'home-aways #'is-under show goals))
 (defun count-home-unders (&key (show 10) (goals 2.5))
-  (count-ou #'homes #'unders show goals))
+  (count-ou #'homes #'is-under show goals))
 (defun count-away-unders (&key (show 10) (goals 2.5))
-  (count-ou #'aways #'unders show goals))
+  (count-ou #'aways #'is-under show goals))
 
 ;;;*******************************************
 
@@ -1767,9 +1805,9 @@
 (defun series-under-odds (team game)
   (series-odds #'under-odds team game))
 (defun series-overs (team game)
-  (series-odds #'overs team game))
+  (series-odds #'is-over team game))
 (defun series-unders (team game)
-  (series-odds #'unders team game))
+  (series-odds #'is-under team game))
 
 (defun do-series (s games-fn result-fn odds-fn)
   "Returns a list of all teams sorted by the returns using series S given the 
@@ -1787,12 +1825,14 @@
 				   (+= returns (* current (funcall odds-fn team game)))
 				   (series-update s "W"))
 				  (t (series-update s "L")))))
-		(push (list (string-upcase (car league))
-					team
-					stake
-					(format nil "~6,2f" returns)
-					(my-round (* 100 (/ returns stake)) 0.01))
-			  my-list)))
+		
+		(if (> stake 0)
+			(push (list (string-upcase (car league))
+						team
+						stake
+						(format nil "~6,2f" returns)
+						(my-round (* 100 (/ returns stake)) 0.01))
+				  my-list))))
 
 	(sort my-list #'> :key #'fifth)))
 
@@ -2125,22 +2165,14 @@
 ;; poss use do-season to break down favourites week-by-week
 
 (defun league-draws (game &optional (n 0))
-  (declare (ignore n)) ;; work-around to allow league-overs/unders to pass goals parameter
+  (declare (ignore n)) ;; work-around to allow count-league-overs/unders to pass goals parameter
   (equal (result game) "D"))
 (defun league-home-wins (game &optional (n 0))
-  (declare (ignore n)) ;; work-around to allow league-overs/unders to pass goals parameter
+  (declare (ignore n)) ;; work-around to allow count-league-overs/unders to pass goals parameter
   (equal (result game) "H"))
 (defun league-away-wins (game &optional (n 0))
-  (declare (ignore n)) ;; work-around to allow league-overs/unders to pass goals parameter
+  (declare (ignore n)) ;; work-around to allow count-league-overs/unders to pass goals parameter
   (equal (result game) "A"))
-
-(defun league-overs (game n)
-  (> (+ (home-score game)
-		(away-score game))
-	 n))
-
-(defun league-unders (game n)
-  (not (league-overs game n)))
 
 (defun count-league-draws ()
   (count-league-results #'league-draws))
@@ -2150,32 +2182,25 @@
   (count-league-results #'league-away-wins))
 
 (defun count-league-overs (&optional (n 2.5))
-  (count-league-results #'league-overs n))
+  (count-league-results #'is-over n))
 (defun count-league-unders (&optional (n 2.5))
-  (count-league-results #'league-unders n))
+  (count-league-results #'is-under n))
 
-#|
-DOESNT WORK count-league-results would need to build list then return that
-(defun count-league-draws2 ()
-(multiple-value-bind (league count total-games)
-(count-league-results #'league-draws)
-(format t "~%~a ~5t: Draws : ~3d Games : ~3d Percent : ~5,2f%"
-(string-upcase (car league)) count total-games (calc-percent total-games count))))
-|#
+(defun is-over-win (game)
+  (and (is-over game)
+	   (> (over-odds game)
+		  (under-odds game))))
 
 (defun over-under-spread ()
-"Returns count of games with higher over-odds that result in over-results"
+  "Returns count of games with higher over-odds that result in over-results"
   (dolist (league *uk-leagues*)
 	(let ((games 0)
 		  (wins 0))
 	  (mapcar #'(lambda (game)
 				  (incf games)
-				  (if (and (> (+ (home-score game)
-								 (away-score game))
-							  2)
-						   (> (over-odds game)
-							  (under-odds game)))
+				  (if (is-over-win game)
 					  (incf wins)))
 			  (get-league (car league)))
-	  (format t "~%~a ~5t: Games : ~3d Wins : ~3d Percent : ~,2f%" (string-upcase (car league)) games wins (calc-percent games wins)))))
+	  (format t "~%~a ~5t: Games : ~3d Wins : ~3d Percent : ~,2f%"
+			  (string-upcase (car league)) games wins (calc-percent games wins)))))
 
