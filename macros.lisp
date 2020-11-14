@@ -1,5 +1,5 @@
-(defpackage :zappa-macros
-(:use :common-lisp))
+() (defpackage :zappa-macros
+	 (:use :common-lisp))
 
 (defmacro input (var string)
   `(format t "~%")
@@ -124,3 +124,8 @@
   `(defmethod print-object ((,instance-name ,class-name) stream)
      (print-unreadable-object (,instance-name stream :type t))
      ,@body))
+
+(defmacro unless-zerop (x &body body)
+ "Return 0 if argument X is zero to avoid division-by-zero errors, otherwise continue"
+  `(if (= ,x 0) 0
+	   ,@body))

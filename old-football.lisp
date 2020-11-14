@@ -971,6 +971,34 @@ sub poisson {
 (defun do-series-away-unders (series &optional (n 30))
   (series-table (do-series-away-unders-calc series n)))
 
+
+;; Second version of do-series-wina etc
+;; More functional but caused problems with export-series
+
+(defun do-series-wins-calc (series games-fn n)
+  (first-n n (do-series series games-fn #'home-away-win-result #'home-away-odds)))
+(defun do-series-defeats-calc (series games-fn n)
+  (first-n n (do-series series games-fn #'home-away-lost-result #'home-away-lost-odds)))
+(defun do-series-draws-calc (series games-fn n)
+  (first-n n (do-series series games-fn #'home-away-draw-result #'series-draw-odds)))
+(defun do-series-overs-calc (series games-fn n)
+  (first-n n (do-series series games-fn #'series-overs #'series-over-odds)))
+(defun do-series-unders-calc (series games-fn n)
+  (first-n n (do-series series games-fn #'series-unders #'series-under-odds)))
+
+(defun do-series-home-wins-calc (series n)
+  (first-n n (do-series series #'homes #'home-away-win-result #'home-away-odds)))
+(defun do-series-away-wins-calc (series n)
+  (first-n n (do-series series #'aways #'home-away-win-result #'home-away-odds)))
+(defun do-series-home-defeats-calc (series n)
+  (first-n n (do-series series #'homes #'home-away-lost-result #'home-away-lost-odds)))
+(defun do-series-away-defeats-calc (series n)
+  (first-n n (do-series series #'aways #'home-away-lost-result #'home-away-lost-odds)))
+(defun do-series-home-draws-calc (series n)
+  (first-n n (do-series series #'homes #'home-away-draw-result #'series-draw-odds)))
+(defun do-series-away-draws-calc (series n)
+  (first-n n (do-series series #'aways #'home-away-draw-result #'series-draw-odds)))
+
 (defun count-league-draws ()
   "Find league with highest average of draws - favs/10 draws strategy"
   (dolist (league *leagues*)
@@ -1065,3 +1093,126 @@ sub poisson {
 					(get-teams (car league))))
 		  my-list)
 		#'> :key #'second))
+    
+(defparameter series-funcs
+  (list #'do-series-wins
+		#'do-series-home-wins-calc
+		#'do-series-away-wins-calc
+		#'do-series-draws
+		#'do-series-home-draws-calc
+		#'do-series-away-draws-calc
+		#'do-series-defeats
+		#'do-series-home-defeats-calc
+		#'do-series-away-defeats-calc))
+    
+(defun show-nested-hash (hash)
+  "Prints out stats for the given nested HASH, such as *ht-stats*"
+  (maphash #'(lambda (key value)
+               (format t "~%~%League : ~a" (cadr (assoc key *leagues*)))
+               (show-hash value))
+           hash))
+
+(defun say (&optional (games *db*))
+  (mapcar #'(lambda (game)
+			  (say-game game))
+            games))
+
+(defun say-odds (&optional (games *db*))
+  (mapcar #'(lambda (game)
+			  (say-game-odds game))
+          games))
+
+(defun get-last-six (fn team ngames)
+  (let* ((my-data (funcall fn team))
+		 (len (length my-data))
+		 (start-elem (if (>= ngames len)
+						 0 (- len ngames))))
+	(nthcdr start-elem my-data)))
+  
+  
+  
+
+(defun do-team-series-calc (team s games-fn result-fn odds-fn)
+  "Returns details of a TEAM with series S, using games returned from GAMES-FN
+   which match RESULT-FN at odds ODDS-FN"
+  
+  (let ((my-list nil)
+		(stake 0)
+		(returns 0)
+		(result ""))
+
+	(series-reset s)
+	(dolist (game (funcall games-fn team))
+	  (let ((current (series-current s)))
+		(+= stake current)
+		(cond ((funcall result-fn team game)
+			   (+= returns (* current (funcall odds-fn team game)))
+			   (setf result "W"))
+			  (t (setf result "L")))
+		(series-update s result)
+		(push (list (date game) (home-team game) (away-team game)
+					current result
+					(home-odds game) (draw-odds game) (away-odds game)
+					stake returns)
+			  my-list)))
+	(values (reverse my-list)
+			stake returns)))
+
+(defun do-team-series (team s games-fn result-fn odds-fn)
+  (format t "~68tOdds ~83tStake ~89tReturn")
+
+  (multiple-value-bind (my-list stake returns)
+	  (do-team-series-calc team s games-fn result-fn odds-fn)
+
+	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a  ~a  ~5,2f ~5,2f ~5,2f  : ~6,2f ~6,2f~}~}" my-list)
+	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (* (/ returns stake) 100))))
+
+(defun do-team-series-wins (team series)
+  (do-team-series team series #'home-aways #'home-away-win-result #'home-away-odds))
+(defun do-team-series-home-wins (team series)
+  (do-team-series team series #'homes #'home-away-win-result #'home-away-odds))
+(defun do-team-series-away-wins (team series)
+  (do-team-series team series #'aways #'home-away-win-result #'home-away-odds))
+
+(defun do-team-series-defeats (team series)
+  (do-team-series team series #'home-aways #'home-away-lost-result #'home-away-lost-odds))
+(defun do-team-series-home-defeats (team series)
+  (do-team-series team series #'homes #'home-away-lost-result #'home-away-lost-odds))
+(defun do-team-series-away-defeats (team series)
+  (do-team-series team series #'aways #'home-away-lost-result #'home-away-lost-odds))
+
+(defun do-team-series-draws (team series)
+  (do-team-series team series #'home-aways #'home-away-draw-result #'series-draw-odds))
+(defun do-team-series-home-draws (team series)
+  (do-team-series team series #'homes #'home-away-draw-result #'series-draw-odds))
+(defun do-team-series-away-draws (team series)
+  (do-team-series team series #'aways #'home-away-draw-result #'series-draw-odds))
+
+(defun do-team-series-overs (team series)
+  (do-team-series team series #'home-aways #'series-overs #'series-over-odds))
+(defun do-team-series-home-overs (team series)
+  (do-team-series team series #'homes #'series-overs #'series-over-odds))
+(defun do-team-series-away-overs (team series)
+  (do-team-series team series #'aways #'series-overs #'series-over-odds))
+
+(defun do-team-series-unders (team series)
+  (do-team-series team series #'home-aways #'series-unders #'series-under-odds))
+(defun do-team-series-home-unders (team series)
+  (do-team-series team series #'homes #'series-unders #'series-under-odds))
+(defun do-team-series-away-unders (team series)
+  (do-team-series team series #'aways #'series-unders #'series-under-odds))
+
+(defun get-league (csv-league &optional (db *db*))
+  "Returns a list of all games for given CSV-LEAGUE"
+  (cond ((null db) nil)
+        ((string-equal csv-league (caar db))
+         (cdar db))
+        (t (get-league csv-league (rest db)))))
+		
+(defun get-last-six (fn team ngames)
+  (let* ((my-data (funcall fn team))
+		 (len (length my-data))
+		 (start-elem (if (>= ngames len)
+						 0 (- len ngames))))
+	(nthcdr start-elem my-data)))
+	
