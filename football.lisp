@@ -454,11 +454,10 @@
 ;; DSL
 ;; Accessor macros and functions for structures
 ;; Find stats within *ht-stats* hash for TEAM in LEAGUE
-;;
+
+
 ;; Enables writing (get-home-for "Stoke" "e1)
 ;; rather than (stats-home-for (gethash "Stoke" (gethash "e1" *ht-stats*)))
-;;
-
 (defmacro get-value (property team hash)
   `(,property (gethash ,team ,hash)))
 
@@ -659,12 +658,21 @@
 						(+ acc (funcall fn team (car inner-list)))))))
 	(inner my-list 0)))
 
+(defun percentage-return (games-fn returns-fn team)
+  (let ((len (length (funcall games-fn team))))
+	(cond ((zerop len) 0)
+		  (t (let ((team-return (funcall returns-fn team)))
+			   (values (/ team-return len)
+					   team-return))))))
+
 ;; Returns per team
 
 (defun home-returns (team)
   (returns #'home-odds (home-wins team)))
 (defun away-returns (team)
   (returns #'away-odds (away-wins team)))
+
+
 
 (defun home-percentage-return (team)
   (/ (home-returns team)
@@ -673,10 +681,16 @@
   (/ (away-returns team)
      (total-away-games team)))
 
+(defun home-percentage-return2 (team)
+  (percentage-return #'homes #'home-returns team))
+(defun away-percentage-return2 (team)
+  (percentage-return #'aways #'away-returns team))
+
 (defun home-loss-returns (team)
   (returns #'away-odds (home-defeats team)))
 (defun away-loss-returns (team)
   (returns #'home-odds (away-defeats team)))
+
 
 (defun home-loss-percentage-return (team)
   (/ (home-loss-returns team)
@@ -761,10 +775,38 @@
 (defun last-six-draws-return (team)
   (returns #'draw-odds (draws-in-last-six team)))
 
-(defun last-six-draws-percentage-return (team)
+(defun last-six-percentage-return (returns-fn team)
   (let ((len (length (last-six team))))
-	(if (= len 0) 0
-		(/ (last-six-draws-return team) len))))
+	(if (zerop len) 0
+		(/ (funcall returns-fn team) len))))
+
+(defun last-six-percentage-return2 (returns-fn team)
+  (let ((len (length (last-six team))))
+	(cond ((zerop len) 0)
+		  (t (let ((team-return (funcall returns-fn team)))
+			   (values (/ team-return len)
+					   team-return))))))
+
+(defun last-six-wins-percentage-return (team)
+  (last-six-percentage-return #'last-six-returns team))
+(defun last-six-wins-percentage-return2 (team)
+  (last-six-percentage-return2 #'last-six-returns team))
+(defun last-six-home-wins-percentage-return (team)
+  (last-six-percentage-return #'last-six-homes-return team))
+(defun last-six-away-wins-percentage-return (team)
+  (last-six-percentage-return #'last-six-aways-return team))
+(defun last-six-draws-percentage-return (team)
+  (last-six-percentage-return #'last-six-draws-return team))
+
+(defun last-six-percentage-return3 (games-fn returns-fn team)
+  (let ((len (length (funcall games-fn team))))
+	(cond ((zerop len) 0)
+		  (t (let ((team-return (funcall returns-fn team)))
+			   (values (/ team-return len)
+					   team-return))))))
+(defun last-six-wins-percentage-return3 (team)
+  (last-six-percentage-return3 #'last-six #'last-six-returns team))
+
 
 ;; Returns per league
 
@@ -772,6 +814,10 @@
   (format-table t my-list
 				:column-label '("League" "Team" "Return")
 				:column-align '(:left :center :center)))
+(defun percents-table2 (my-list)
+  (format-table t my-list
+				:column-label '("League" "Team" "Return" "Percentage")
+				:column-align '(:left :center :center :center)))
 
 (defun league-percents (fn csv-league)
   "Calculate (loss) percentage returns for each TEAM in LEAGUE"
@@ -780,9 +826,23 @@
 					(my-round (funcall fn team) 0.0001)))
           (get-teams csv-league)))
 
+(defun league-percents2 (fn csv-league)
+  "Calculate (loss) percentage returns for each TEAM in LEAGUE"
+  (mapcar #'(lambda (team)
+			  (multiple-value-bind (percent team-return) (funcall fn team)
+				(list (string-upcase csv-league)
+					  team
+					  (my-round team-return 0.01)
+					  (my-round percent 0.01))))
+          (get-teams csv-league)))
+
 (defun do-league-percents (fn league)
   (percents-table
    (safe-sort (league-percents fn league) #'> :key #'third)))
+(defun do-league-percents2 (fn league)
+  (percents-table2
+   (safe-sort (league-percents2 fn league) #'> :key #'third)))
+
 
 (defun do-percents (league)
   "Show percentage returns for each team in LEAGUE"
@@ -820,8 +880,17 @@
   "Show percentage returns for each team in LEAGUE"
   (do-league-percents #'away-draw-percentage-return league))
 
+(defun do-last-six-wins-percents (league)
+  (do-league-percents #'last-six-wins-percentage-return league))
+(defun do-last-six-home-wins-percents (league)
+  (do-league-percents #'last-six-home-wins-percentage-return league))
+(defun do-last-six-away-wins-percents (league)
+  (do-league-percents #'last-six-away-wins-percentage-return league))
 (defun do-last-six-draw-percents (league)
   (do-league-percents #'last-six-draws-percentage-return league))
+
+(defun do-last-six-wins-percents2 (league)
+  (do-league-percents2 #'last-six-wins-percentage-return league))
 
 (defun percents-all (fn)
   "Calculate percentage returns for all teams in all leagues"
@@ -831,9 +900,21 @@
         (push team my-list)))
     my-list))
 
+(defun percents-all2 (fn)
+  "Calculate percentage returns for all teams in all leagues"
+  (let ((my-list nil))
+    (dolist (league *leagues*)
+      (dolist (team (league-percents2 fn (csv-filename league)))
+        (push team my-list)))
+    my-list))
+
 (defun do-all-percents (fn)
   (percents-table
    (safe-sort (percents-all fn) #'< :key #'third)))
+
+(defun do-all-percents2 (fn)
+  (percents-table2
+   (safe-sort (percents-all2 fn) #'< :key #'fourth)))
 
 (defun do-percents-all ()
   "Show percentage returns for all teams"
@@ -895,8 +976,17 @@
   "Show under 2.5 away percentage returns for all teams"
   (do-all-percents #'away-under-percentage-return))
 
+(defun do-last-six-wins-percents-all ()
+  (do-all-percents #'last-six-wins-percentage-return))
+(defun do-last-six-home-wins-percents-all ()
+  (do-all-percents #'last-six-home-wins-percentage-return))
+(defun do-last-six-away-wins-percents-all ()
+  (do-all-percents #'last-six-away-wins-percentage-return))
 (defun do-last-six-draw-percents-all ()
   (do-all-percents #'last-six-draws-percentage-return))
+
+(defun do-last-six-wins-percents-all2 ()
+  (do-all-percents2 #'last-six-wins-percentage-return))
 
 ;; Show only top n teams in all leagues for each predicate
 
@@ -904,6 +994,11 @@
   (percents-table
    (first-n n (safe-sort (percents-all fn)
 				#'> :key #'third))))
+
+(defun do-top-percents2 (fn n)
+  (percents-table2
+   (first-n n (safe-sort (percents-all2 fn)
+				#'> :key #'fourth))))
 
 (defun top-percents (&optional (n 10))
   "Show top win percentage returns for all teams"
@@ -949,8 +1044,17 @@
   "Show top under percentage returns for all teams"
   (do-top-percents #'under-percentage-return n))
 
+(defun top-last-six-wins-percents (&optional (n 10))
+  (do-top-percents #'last-six-wins-percentage-return n))
+(defun top-last-six-home-win-percents (&optional (n 10))
+  (do-top-percents #'last-six-home-wins-percentage-return n))
+(defun top-last-six-away-wins-percents (&optional (n 10))
+  (do-top-percents #'last-six-away-wins-percentage-return n))
 (defun top-last-six-draw-percents (&optional (n 10))
   (do-top-percents #'last-six-draws-percentage-return n))
+
+(defun top-last-six-wins-percents2 (&optional (n 10))
+  (do-top-percents2 #'last-six-wins-percentage-return n))
 
 
 ;; Returns stats
@@ -1927,47 +2031,6 @@
 		(format t "~%Writing ~a..." filename)
 		(write-series series filename)))))
 
-;;; new version
-(defun do-team-series-calc2 (team s games-list result-fn odds-fn)
-  "Returns details of a TEAM with series S for GAMES-LIST
-   which match RESULT-FN at odds ODDS-FN"
-  
-  (let ((my-list nil)
-		(stake 0)
-		(returns 0)
-		(result ""))
-
-	(series-reset s)
-	(dolist (game games-list)
-	  (let ((current (series-current s)))
-		(+= stake current)
-		(cond ((funcall result-fn team game)
-			   (+= returns (* current (funcall odds-fn team game)))
-			   (setf result "W"))
-			  (t (setf result "L")))
-		(series-update s result)
-		(push (list (date game) (home-team game) (away-team game)
-					current result
-					(home-odds game) (draw-odds game) (away-odds game)
-					stake returns)
-			  my-list)))
-	(values (reverse my-list)
-			stake returns)))
-
-(defun do-team-series2 (team s games-fn result-fn odds-fn)
-  (format t "~68tOdds ~83tStake ~89tReturn")
-
-  (multiple-value-bind (my-list stake returns)
-	  (do-team-series-calc2 team s games-fn result-fn odds-fn)
-
-	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a  ~a  ~5,2f ~5,2f ~5,2f  : ~6,2f ~6,2f~}~}" my-list)
-	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (* (/ returns stake) 100))))
-
-(defun do-team-series-wins2 (team series)
-  (do-team-series2 team series (home-aways team) #'home-away-win-result #'home-away-odds))
-(defun do-team-series-wins-last-six (team series &optional (n 6))
-  (do-team-series2 team series (last-six team n) #'home-away-win-result #'home-away-odds))
-
 (defun do-team-series-calc (team s games-fn result-fn odds-fn)
   "Returns details of a TEAM with series S, using games returned from GAMES-FN
    which match RESULT-FN at odds ODDS-FN"
@@ -1994,11 +2057,11 @@
 	(values (reverse my-list)
 			stake returns)))
 
-(defun do-team-series (team s games-fn result-fn odds-fn)
+(defun do-team-series (team s games-list result-fn odds-fn)
   (format t "~68tOdds ~83tStake ~89tReturn")
 
   (multiple-value-bind (my-list stake returns)
-	  (do-team-series-calc team s games-fn result-fn odds-fn)
+	  (do-team-series-calc team s games-list result-fn odds-fn)
 
 	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a  ~a  ~5,2f ~5,2f ~5,2f  : ~6,2f ~6,2f~}~}" my-list)
 	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (* (/ returns stake) 100))))
@@ -2117,23 +2180,23 @@
 (defun do-series-all-last-six-aways (series &optional (n 10))
   (do-series-all-results series #'last-six-aways n))
 
-(defun calc-team-series (team s games-fn result-fn odds-fn)
+(defun calc-team-series (team series games-fn result-fn odds-fn)
   "Adapted from do-team-series, calculates returns of a TEAM with series S,
    using games returned from GAMES-FN which match RESULT-FN at odds ODDS-FN"
   
   (let ((stake 0)
 		(returns 0)
 		(result ""))
-	(series-reset s)
+	(series-reset series)
 	
 	(dolist (game (funcall games-fn team))
-	  (let ((current (series-current s)))
+	  (let ((current (series-current series)))
 		(+= stake current)
 		(cond ((funcall result-fn team game)
 			   (+= returns (* current (funcall odds-fn team game)))
 			   (setf result "W"))
 			  (t (setf result "L")))
-		(series-update s result)))
+		(series-update series result)))
 	(values stake returns)))
 
 (defun best-series-table (my-list)
