@@ -28,8 +28,7 @@
     ("sc0" "Scots Premier")
     ("sc1" "Scots Championship")
     ("sc2" "Scots League One")
-    ("sc3" "Scots League Two")
-	))
+    ("sc3" "Scots League Two")))
 
 (defparameter *summer-leagues*
   '(("swe" "Swedish League")
@@ -658,14 +657,13 @@
 						(+ acc (funcall fn team (car inner-list)))))))
 	(inner my-list 0)))
 
-(proclaim '(inline percentage-return))
 (defun percentage-return (games-fn returns-fn team)
   (let ((ngames (length (funcall games-fn team))))
 	(cond ((zerop ngames) (values 0 0))
 		  (t (let ((team-return (funcall returns-fn team)))
-			   (values (/ team-return ngames)
+			   (values ngames
 					   team-return
-					   ngames))))))
+					   (/ team-return ngames)))))))
 
 ;; Returns per team
 
@@ -777,7 +775,7 @@
 (defun league-percents (fn csv-league)
   "Calculate (loss) percentage returns for each TEAM in LEAGUE"
   (mapcar #'(lambda (team)
-			  (multiple-value-bind (percent team-return ngames) (funcall fn team)
+			  (multiple-value-bind (ngames team-return percent) (funcall fn team)
 				(list (string-upcase csv-league)
 					  team
 					  ngames
@@ -841,6 +839,15 @@
       (dolist (team (league-percents fn (csv-filename league)))
         (push team my-list)))
     my-list))
+
+(defun percents-all2 (fn)
+  (let ((my-list nil))
+	(mapcar #'(lambda (league)
+				(mapcar #'(lambda (team)
+							(push team my-list))
+						(league-percents fn (csv-filename league))))
+			*leagues*)
+	my-list))
 
 (defun do-all-percents (fn)
   (percents-table
@@ -914,6 +921,8 @@
   (do-all-percents #'last-six-away-win-percentage-return))
 (defun do-last-six-draw-percents-all ()
   (do-all-percents #'last-six-draw-percentage-return))
+(defun do-last-six-loss-percents-all ()
+  (do-all-percents #'last-six-loss-percentage-return))
 
 ;; Show only top n teams in all leagues for each predicate
 
@@ -974,6 +983,8 @@
   (do-top-percents #'last-six-away-win-percentage-return n))
 (defun top-last-six-draw-percents (&optional (n 10))
   (do-top-percents #'last-six-draws-percentage-return n))
+(defun top-last-six-loss-percents (&optional (n 10))
+  (do-top-percents #'last-six-loss-percentage-return n))
 
 ;; Returns stats
 
@@ -2260,3 +2271,11 @@
   (first-n n (sort (get-all-btts leagues)
 				   #'> :key #'second)))
 
+;; trying to get rid of get-all-btts but doesnt work
+(defun sort-btts2 (leagues &optional (n 10))
+  (let ((my-list nil))
+	(first-n n (sort
+				(mapcar #'(lambda (league)
+							(setf my-list (append my-list (get-btts (csv-filename league)))))
+						leagues)
+				#'> :key #'second))))
