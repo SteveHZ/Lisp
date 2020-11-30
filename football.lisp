@@ -763,7 +763,7 @@
 (defun last-six-loss-percentage-return (team)
   (percentage-return #'last-six #'last-six-loss-returns team))
 (defun last-six-draw-percentage-return (team)
-  (percentage-return #'last-six #'last-six-draws-return team))
+  (percentage-return #'last-six #'last-six-draw-return team))
 
 ;; Returns per league
 
@@ -828,7 +828,7 @@
 (defun do-last-six-home-win-percents (league)
   (do-league-percents #'last-six-home-win-percentage-return league))
 (defun do-last-six-away-wins-percents (league)
-  (do-league-percents #'last-six-away-wins-percentage-return league))
+  (do-league-percents #'last-six-away-win-percentage-return league))
 (defun do-last-six-draw-percents (league)
   (do-league-percents #'last-six-draw-percentage-return league))
 
@@ -973,7 +973,7 @@
 (defun top-last-six-away-win-percents (&optional (n 10))
   (do-top-percents #'last-six-away-win-percentage-return n))
 (defun top-last-six-draw-percents (&optional (n 10))
-  (do-top-percents #'last-six-draws-percentage-return n))
+  (do-top-percents #'last-six-draw-percentage-return n))
 (defun top-last-six-loss-percents (&optional (n 10))
   (do-top-percents #'last-six-loss-percentage-return n))
 
