@@ -1785,3 +1785,10 @@ sub poisson {
   (get-away-stats-detail team)
   (get-home-away-stats-detail team))
 
+(defun percents-all2 (fn)
+  (let ((my-list nil))
+	(mapcar #'(lambda (league)
+				(mapcar #'(lambda (team)
+							(push team my-list))
+						(league-percents fn (csv-filename league))))
+			*leagues*)))

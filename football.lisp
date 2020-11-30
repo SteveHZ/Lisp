@@ -661,9 +661,9 @@
   (let ((ngames (length (funcall games-fn team))))
 	(cond ((zerop ngames) (values 0 0))
 		  (t (let ((team-return (funcall returns-fn team)))
-			   (values ngames
+			   (values (/ team-return ngames)
 					   team-return
-					   (/ team-return ngames)))))))
+					   ngames))))))
 
 ;; Returns per team
 
@@ -775,7 +775,7 @@
 (defun league-percents (fn csv-league)
   "Calculate (loss) percentage returns for each TEAM in LEAGUE"
   (mapcar #'(lambda (team)
-			  (multiple-value-bind (ngames team-return percent) (funcall fn team)
+			  (multiple-value-bind (percent team-return ngames) (funcall fn team)
 				(list (string-upcase csv-league)
 					  team
 					  ngames
@@ -839,15 +839,6 @@
       (dolist (team (league-percents fn (csv-filename league)))
         (push team my-list)))
     my-list))
-
-(defun percents-all2 (fn)
-  (let ((my-list nil))
-	(mapcar #'(lambda (league)
-				(mapcar #'(lambda (team)
-							(push team my-list))
-						(league-percents fn (csv-filename league))))
-			*leagues*)
-	my-list))
 
 (defun do-all-percents (fn)
   (percents-table
