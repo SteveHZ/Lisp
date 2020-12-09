@@ -1,4 +1,6 @@
 (in-package "COMMON-LISP-USER")
+;;(make-package :football)
+;;(in-package :football)
 
 (let ((my-files
   '("c:/mine/lisp/my-poisson.lisp"
@@ -11,3 +13,6 @@
   (dolist (filename my-files)
     (princ ".")
     (load filename)))
+
+;;(in-package :football)
+

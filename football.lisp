@@ -55,7 +55,7 @@
 ;;(defparameter *fixtures-file* *summer-fixtures-file*)
 ;;(defparameter *csv-cols* *summer-csv-cols*)
 ;;(defparameter *teams-file* *summer-teams-file*)
-;; (defparameter *leagues* (append *uk-leagues* *summer-leagues*))
+;;;(defparameter *leagues* (append *uk-leagues* *summer-leagues*))
 
 (defvar *ht-stats* (make-hash-table :test #'equal))
 (defvar *ht-league-stats* (make-hash-table :test #'equal))
@@ -550,12 +550,16 @@
   (with-open-file (in *teams-file*)
     (setf *teams* (read in))))
 
+(defun load-league-data (league)
+  (list `(,(csv-filename league) .
+		  ,(import-csv
+			(format nil "c:/mine/lisp/data/~a.csv" (csv-filename league))))))
+
 (defun load-leagues ()
   "Load all CSV files for leagues in *leagues*"
   (setf *db* nil)
   (dolist (league *leagues*)
-    (setf *db* (append *db* (list `(,(csv-filename league) .
-									,(import-csv (format nil "c:/mine/lisp/data/~a.csv" (csv-filename league)))))))))
+    (setf *db* (append *db* (load-league-data league)))))
 
 (defun load-fixtures ()
   (setf *fixtures* (import-csv *fixtures-file*)))
@@ -646,20 +650,20 @@
 (defun returns (fn my-list)
   (labels ((inner (inner-list acc)
 			 (if (null inner-list) acc
-				 (inner (cdr inner-list)
-						(+ acc (funcall fn (car inner-list)))))))
+				 (inner (rest inner-list)
+						(+ acc (funcall fn (first inner-list)))))))
     (inner my-list 0)))
 
 (defun ha-returns (fn team my-list)
   (labels ((inner (inner-list acc)
 			 (if (null inner-list) acc
-				 (inner (cdr inner-list)
-						(+ acc (funcall fn team (car inner-list)))))))
+				 (inner (rest inner-list)
+						(+ acc (funcall fn team (first inner-list)))))))
 	(inner my-list 0)))
 
 (defun percentage-return (games-fn returns-fn team)
   (let ((ngames (length (funcall games-fn team))))
-	(cond ((zerop ngames) (values 0 0))
+	(cond ((zerop ngames) (values 0 0 0))
 		  (t (let ((team-return (funcall returns-fn team)))
 			   (values (/ team-return ngames)
 					   team-return
@@ -1299,7 +1303,7 @@
   
   (format t "~%")
   (print-game-odds (safe-sort *expects*
-                     #'< :key #'game-draw-odds)))
+                     #'< :key #'game-home-odds)))
 
 (defun start ()
   "Load all data"
@@ -1776,7 +1780,8 @@
 (defparameter old-s3 (make-old-circular-series '(1 2 3 5) '(5 5)))
 (defparameter old-s4 (make-old-circular-series '(1 1) '(1 1)))
 
-(defparameter s1 (make-short-series '(1 2 2 3 3 5 5)))
+(defparameter s1 (make-circular-series '(1 1) '(1 1)))
+;(defparameter s1 (make-short-series '(1 2 2 3 3 5 5)))
 (defparameter s2 (make-short-series '(2 2 3 3 5 5 7 7)))
 
 (defparameter s3 (make-long-series '(2 2 2 3 3 3 5 5 5 8 8 8)))
