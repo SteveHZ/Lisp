@@ -123,24 +123,6 @@
 ;; Accessor macros and functions for each game in *db*
 ;;
 
-(defun say-game (game)
-  (if (equal *leagues* *uk-leagues*)
-	  (format t "~%~{~a ~10t~a ~30t v ~a ~54t~a-~a  ~a ~5*~}" game)    ; uk
-	  (format t "~%~{~a ~10t~a ~30t v ~a ~54t~a-~a  ~a ~3*~}" game)))  ; summer
-
-(defun say-game-with-odds (game)
-  (if (equal *leagues* *uk-leagues*)
-	  (format t "~%~{~a ~10t~a ~30t  v ~a ~54t~a-~a  ~a ~62t~a ~68t~a ~74t~a   ~84t~a ~92t~a~}" game)  ; uk
-	  (format t "~%~{~a ~10t~a ~30t  v ~a ~54t~a-~a  ~a ~62t~a ~68t~a ~74t~a~}" game)))                ; summer 
-
-(defun say (games &key (odds nil))
-  (mapcar #'(lambda (game)
-			  (if odds 
-				  (say-game-with-odds game)
-				  (say-game game)))
-		  games)
-  t)
-
 (proclaim '(inline date home-team away-team home-score away-score result
 			home-odds away-odds draw-odds over-odds under-odds))
 
@@ -199,13 +181,6 @@
 (defun home-aways (team)
   (get-games #'home-away team))
 
-(defun say-homes (team &key (odds nil))
-  (say (homes team) :odds odds))
-(defun say-aways (team &key (odds nil))
-  (say (aways team) :odds odds))
-(defun say-home-aways (team &key (odds nil))
-  (say (home-aways team) :odds odds))
-
 (defun first-n (n my-list)
   (let* ((len (length my-list))
          (start-elem (if (> len n)
@@ -218,6 +193,8 @@
 						 0 (- len n))))
 	(nthcdr start-elem data)))
 
+;; if going to change to recent (see below) start from here;
+;;; last-six function -> recent-games
 (defun get-last-six (fn team &optional (ngames 6))
   (let ((my-data (funcall fn team)))
 	(last-n my-data ngames))) 
@@ -447,6 +424,49 @@
 					 (draws team)))
 	(format t "~%Home Wins : ~a~%Away Wins : ~a~%Draws : ~a" home away draw)))
 
+;; ***************************************************************
+
+;; DSL
+;; Macros to create functions named FN-NAME
+;; returning a list of games from GAMES-FN to output using SAY
+
+(defun say-game (game)
+  (if (equal *leagues* *uk-leagues*)
+	  (format t "~%~{~a ~10t~a ~30t v ~a ~54t~a-~a  ~a ~5*~}" game)    ; uk
+	  (format t "~%~{~a ~10t~a ~30t v ~a ~54t~a-~a  ~a ~3*~}" game)))  ; summer
+
+(defun say-game-with-odds (game)
+  (if (equal *leagues* *uk-leagues*)
+	  (format t "~%~{~a ~10t~a ~30t  v ~a ~54t~a-~a  ~a ~62t~a ~68t~a ~74t~a   ~84t~a ~92t~a~}" game)  ; uk
+	  (format t "~%~{~a ~10t~a ~30t  v ~a ~54t~a-~a  ~a ~62t~a ~68t~a ~74t~a~}" game)))                ; summer 
+
+(defun say (games &key (odds nil))
+  (mapcar #'(lambda (game)
+			  (if odds 
+				  (say-game-with-odds game)
+				  (say-game game)))
+		  games)
+  t)
+
+(defmacro defsay (fn-name games-fn)
+  `(defun ,fn-name (team &key (odds nil))
+	 (say (funcall ,games-fn team) :odds odds)))
+
+(defmacro defsay-n (fn-name games-fn)
+  `(defun ,fn-name (team &key (odds nil) (games 6))
+	 (say (funcall ,games-fn team games) :odds odds)))
+
+(defsay say-homes #'homes)
+(defsay say-aways #'aways)
+(defsay say-home-aways #'home-aways)
+
+(defsay-n say-last-six #'last-six)
+(defsay-n say-last-six-homes #'last-six-homes)
+(defsay-n say-last-six-aways #'last-six-aways) 
+
+(defsay say-wins #'wins)
+(defsay say-defeats #'defeats)
+(defsay say-draws #'draws)
 
 ;; ***************************************************************
 

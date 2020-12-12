@@ -1792,3 +1792,70 @@ sub poisson {
 							(push team my-list))
 						(league-percents fn (csv-filename league))))
 			*leagues*)))
+			
+			
+;;; Experimental (???) last-six routines 10/12/20
+
+;; if going to change to recent (see below) start from here;
+;;; last-six function -> recent-games
+(defun get-last-six (fn team &optional (ngames 6))
+  (let ((my-data (funcall fn team)))
+	(last-n my-data ngames))) 
+
+(defun last-six-homes (team &optional (ngames 6))
+  (get-last-six #'homes team ngames))
+(defun last-six-aways (team &optional (ngames 6))
+  (get-last-six #'aways team ngames))
+(defun last-six (team &optional (ngames 6))
+  (get-last-six #'home-aways team ngames))
+
+;; these work
+;; first try
+(defun say-last-six (team &key (odds nil) ((:games ngames) 6))
+  (say (last-six team ngames) :odds odds))
+
+;; second try
+(defun do-say-last-six-games (team games-fn odds ngames)
+  (say (funcall games-fn team ngames) :odds odds))
+;; think above should be macro
+(defmacro do-say-last-six-games-mac (team games-fn &key (odds nil) (ngames 6))
+  `,(say (funcall `,games-fn `,team `,ngames) :odds `,odds))
+;;(defun new-homes) ;; ? how to declare odds & ngames - not sure can :-(
+;; unless by using params as per pcl ??
+
+(defun say-last-six-homes2 (team &key (odds nil) ((:games ngames) 6))
+  (do-say-last-six-games-mac team #'last-six-homes :odds odds :ngames ngames))
+(defun say-last-six-homes (team &key (odds nil) ((:games ngames) 6))
+  (do-say-last-six-games team #'last-six-homes odds ngames))
+(defun say-last-six-aways (team &key (odds nil) ((:games ngames) 6))
+  (do-say-last-six-games team #'last-six-aways odds ngames))
+;; to here
+
+;; maybe use recent-games/homes/aways to replace last-six/last-n ??
+;; write macro to reduce above duplication ??
+
+#|
+(defmacro defsay (name team games-fn)
+`(defun ,name (,team ,games-fn)
+;;	 `,(say (funcall #',games-fn ,team))
+`,(do-say-last-six-games team `,games-fn odds games)
+))
+(defun say-last-six-games2 (team games-fn odds ngames)
+  (say (funcall games-fn team ngames) :odds odds))
+
+;; = older
+
+(defsay say-last-six-homes3 team last-six-homes)
+
+(defun say-last-six-games2 (team games-fn odds ngames)
+  (say (funcall games-fn team ngames) :odds odds))
+
+(defmacro defsay (name team games-fn)
+  `(defun ,name (,team ,games-fn &key (odds nil) (games 6))
+	 `,(say (funcall ,games-fn ,team ,games) :odds ,odds)
+;;	 `,(say-last-six-games2 team `,games-fn odds games)
+	 ))
+
+(defsay say-last-six-homes3 team #'last-six-homes)
+|#
+
