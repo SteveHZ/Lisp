@@ -1859,3 +1859,49 @@ sub poisson {
 (defsay say-last-six-homes3 team #'last-six-homes)
 |#
 
+(defun do-say-last-six-games (team games-fn odds ngames)
+  (say (funcall games-fn team ngames) :odds odds))
+
+(defun say-last-six (team &key (odds nil) ((:games ngames) 6))
+  (do-say-last-six-games team #'last-six odds ngames))
+(defun say-last-six-homes (team &key (odds nil) ((:games ngames) 6))
+  (do-say-last-six-games team #'last-six-homes odds ngames))
+(defun say-last-six-aways (team &key (odds nil) ((:games ngames) 6))
+  (do-say-last-six-games team #'last-six-aways odds ngames))
+
+(defmacro do-say-last-six-games-mac (team games-fn &key (odds nil) (ngames 6))
+  `(say (funcall ,games-fn ,team ,ngames) :odds ,odds))
+(defun say-last-six2 (team &key (odds nil) (games 6))
+  (do-say-last-six-games-mac team #'last-six :odds odds :ngames games))
+(defun say-last-six-homes2 (team &key (odds nil) (games 6))
+  (do-say-last-six-games-mac team #'last-six-homes :odds odds :ngames games))
+(defun say-last-six-aways2 (team &key (odds nil) (games 6))
+  (do-say-last-six-games-mac team #'last-six-aways :odds odds :ngames games))
+
+(defmacro defsay (name (team games-fn))
+  `(defun ,name (,team &key (odds nil) (games 6))
+	(say (funcall ,games-fn ,team games) :odds odds)))
+
+(defsay say-last-six3 (team #'last-six))
+(defsay say-last-six-homes3 (team #'last-six-homes))
+(defsay say-last-six-aways3 (team #'last-six-aways))
+
+;; Returns per team
+(defmacro defreturns (name odds-fn game-list)
+  `(defun ,name (team)
+	 (returns ,odds-fn ,game-list)))
+
+(defreturns home-win-returns2
+  #'home-odds (home-wins team))
+(defreturns away-win-returns2
+  #'away-odds (away-wins team))
+
+(defmacro def%-return (name team games-fn returns-fn)
+  `(defun ,name (,team)
+	 (percentage-return ,games-fn ,returns-fn ,team)))
+
+(def%-return home-win-percentage-return2
+  team #'homes #'home-win-returns)
+(def%-return away-win-percentage-return2
+  team #'aways #'away-win-returns)
+

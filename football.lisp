@@ -369,11 +369,12 @@
 	   (funcall result-fn team game))
    (funcall games-fn team)))
 
-(defun wins-in-last-six (team)
+;; sort thos out so ngames work then call say-* with defsay-n
+(defun wins-in-last-six (team &optional (ngames 6))
   (get-home-away-result #'home-away-win-result #'last-six team))
-(defun defeats-in-last-six (team)
+(defun defeats-in-last-six (team &optional (ngames 6))
   (get-home-away-result #'home-away-lost-result #'last-six team))
-(defun draws-in-last-six (team)
+(defun draws-in-last-six (team &optional (ngames 6))
   (get-home-away-result #'home-away-draw-result #'last-six team))
 
 (defun wins-in-last-six-homes (team)
@@ -427,8 +428,7 @@
 ;; ***************************************************************
 
 ;; DSL
-;; Macros to create functions named FN-NAME
-;; returning a list of games from GAMES-FN to output using SAY
+;; Output lists of games in readable form
 
 (defun say-game (game)
   (if (equal *leagues* *uk-leagues*)
@@ -447,6 +447,9 @@
 				  (say-game game)))
 		  games)
   t)
+
+;; Macros to create functions named FN-NAME
+;; returning a list of games from GAMES-FN to output using SAY
 
 (defmacro defsay (fn-name games-fn)
   `(defun ,fn-name (team &key (odds nil))
@@ -468,6 +471,14 @@
 (defsay say-defeats #'defeats)
 (defsay say-draws #'draws)
 
+(defsay-n say-last-six-wins #'last-six-wins)
+(defsay-n say-last-six-defeats #'last-six-defeats)
+(defsay-n say-last-six-draws #'last-six-draws)
+
+(defsay say-wins-in-last-six #'wins-in-last-six)
+(defsay say-defeats-in-last-six #'defeats-in-last-six)
+(defsay say-draws-in-last-six #'draws-in-last-six)
+
 ;; ***************************************************************
 
 ;; DSL
@@ -477,6 +488,7 @@
 
 ;; Enables writing (get-home-for "Stoke" "e1)
 ;; rather than (stats-home-for (gethash "Stoke" (gethash "e1" *ht-stats*)))
+
 (defmacro get-value (property team hash)
   `(,property (gethash ,team ,hash)))
 
@@ -642,15 +654,17 @@
 	(with-standard-io-syntax
 	  (print *my-teams* out))))
 
-(defun my-teams-add (team)
-  (push team *my-teams*)
+(defun my-teams-add (&rest team-list)
+  (dolist (team team-list)
+	(push team *my-teams*))
   (save-my-teams))
 
-(defun my-teams-remove (team)
-  (setf *my-teams*
-		(remove-if #'(lambda (tm)
-					   (string-equal tm team))
-				   *my-teams*))
+(defun my-teams-remove (&rest team-list)
+  (dolist (team team-list)
+	(setf *my-teams*
+		  (remove-if #'(lambda (tm)
+						 (string-equal tm team))
+					 *my-teams*)))
   (save-my-teams))
 
 (defun my-fixtures ()
