@@ -1905,3 +1905,11 @@ sub poisson {
 (def%-return away-win-percentage-return2
   team #'aways #'away-win-returns)
 
+;; trying to get rid of get-all-btts but doesnt work
+(defun sort-btts2 (leagues &optional (n 10))
+  (let ((my-list nil))
+	(first-n n (sort
+				(mapcar #'(lambda (league)
+							(setf my-list (append my-list (get-btts (csv-filename league)))))
+						leagues)
+				#'> :key #'second))))
