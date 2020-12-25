@@ -409,6 +409,13 @@
 (defun get-league-draws (games-list)
   (get-results "D" games-list))
 
+(defun get-teams (csv-league &optional (teams *teams*))
+  "Returns a list of teams in the given CSV-LEAGUE"
+  (cond ((null teams) nil)
+        ((string-equal csv-league (first (first teams))) ; league id
+		 (second (first teams))) ;; list of league teams
+        (t (get-teams csv-league (rest teams)))))
+
 (defun count-all-league-results ()
   (mapcar #'(lambda (league)
 			  (let* ((league-name (string-upcase (csv-league-name league)))
@@ -497,8 +504,8 @@
 ;; As with defsay but with optional number of recent games
 
 (defmacro defsay-n (fn-name games-fn)
-  `(defun ,fn-name (team &key (odds nil) (games 6))
-	 (say (funcall ,games-fn team games) :odds odds)))
+  `(defun ,fn-name (team &key (odds nil) (ngames 6))
+	 (say (funcall ,games-fn team ngames) :odds odds)))
 
 (defsay-n say-last-six #'last-six)
 (defsay-n say-last-six-homes #'last-six-homes)
@@ -513,19 +520,19 @@
 ;;  DSL Returns
 ;;
 
-(defun returns (fn my-list)
+(defun returns (odds-fn games-list)
   (labels ((inner (inner-list acc)
 			 (if (null inner-list) acc
 				 (inner (rest inner-list)
-						(+ acc (funcall fn (first inner-list)))))))
-    (inner my-list 0)))
+						(+ acc (funcall odds-fn (first inner-list)))))))
+    (inner games-list 0)))
 
-(defun ha-returns (fn team my-list)
+(defun ha-returns (team odds-fn games-list)
   (labels ((inner (inner-list acc)
 			 (if (null inner-list) acc
 				 (inner (rest inner-list)
-						(+ acc (funcall fn team (first inner-list)))))))
-	(inner my-list 0)))
+						(+ acc (funcall odds-fn team (first inner-list)))))))
+	(inner games-list 0)))
 
 (defun percentage-return (games-fn returns-fn team)
   (let ((ngames (length (funcall games-fn team))))
@@ -612,7 +619,7 @@
   (percentage-return #'aways #'away-under-returns team))
 
 (defun last-six-win-returns (team)
-  (ha-returns #'home-away-odds team (wins-in-last-six team)))
+  (ha-returns team #'home-away-odds (wins-in-last-six team)))
 (defun last-six-homes-return (team)
   (returns #'home-odds (wins-in-last-six-homes team)))
 (defun last-six-aways-return (team)
@@ -626,7 +633,7 @@
   (percentage-return #'last-six-aways #'last-six-aways-return team))
 
 (defun last-six-loss-returns (team)
-  (ha-returns #'home-away-lost-odds team (defeats-in-last-six team)))
+  (ha-returns team #'home-away-lost-odds (defeats-in-last-six team)))
 (defun last-six-draw-return (team)
   (returns #'draw-odds (draws-in-last-six team)))
 
@@ -720,6 +727,11 @@
   "Show percentage returns for each team in LEAGUE"
   (do-league-percents #'away-draw-percentage-return league))
 
+(defun do-over-percents (league)
+  (do-league-percents #'over-percentage-return league))
+(defun do-under-percents (league)
+  (do-league-percents #'under-percentage-return league))
+
 (defun do-last-six-win-percents (league)
   (do-league-percents #'last-six-win-percentage-return league))
 (defun do-last-six-home-win-percents (league)
@@ -728,6 +740,20 @@
   (do-league-percents #'last-six-away-win-percentage-return league))
 (defun do-last-six-draw-percents (league)
   (do-league-percents #'last-six-draw-percentage-return league))
+
+(defun last-six-over-percents (league)
+  (do-league-percents #'last-six-over-percentage-return league))
+(defun last-six-home-over-percents (league)
+  (do-league-percents #'last-six-home-over-percentage-return league))
+(defun last-six-away-over-percents (league)
+  (do-league-percents #'last-six-away-over-percentage-return league))
+
+(defun last-six-under-percents (league)
+  (do-league-percents #'last-six-under-percentage-return league))
+(defun last-six-home-under-percents (league)
+  (do-league-percents #'last-six-home-under-percentage-return league))
+(defun last-six-away-under-percents (league)
+  (do-league-percents #'last-six-away-under-percentage-return league))
 
 (defun percents-all (fn)
   "Calculate percentage returns for all teams in all leagues"
@@ -812,6 +838,20 @@
 (defun do-last-six-loss-percents-all ()
   (do-all-percents #'last-six-loss-percentage-return))
 
+(defun do-last-six-over-percents-all ()
+  (do-all-percents #'last-six-over-percentage-return))
+(defun do-last-six-home-over-percents-all ()
+  (do-all-percents #'last-six-home-over-percentage-return))
+(defun do-last-six-away-over-percents-all ()
+  (do-all-percents #'last-six-away-over-percentage-return))
+
+(defun do-last-six-under-percents-all ()
+  (do-all-percents #'last-six-under-percentage-return))
+(defun do-last-six-home-under-percents-all ()
+  (do-all-percents #'last-six-home-under-percentage-return))
+(defun do-last-six-away-under-percents-all ()
+  (do-all-percents #'last-six-away-under-percentage-return))
+
 ;; Show only top n teams in all leagues for each predicate
 
 (defun do-top-percents (fn n)
@@ -873,6 +913,20 @@
   (do-top-percents #'last-six-draw-percentage-return n))
 (defun top-last-six-loss-percents (&optional (n 10))
   (do-top-percents #'last-six-loss-percentage-return n))
+
+(defun top-last-six-over-percents (&optional (n 10))
+  (do-top-percents #'last-six-over-percentage-return n))
+(defun top-last-six-home-over-percents (&optional (n 10))
+  (do-top-percents #'last-six-home-over-percentage-return n))
+(defun top-last-six-away-over-percents (&optional (n 10))
+  (do-top-percents #'last-six-away-over-percentage-return n))
+
+(defun top-last-six-under-percents (&optional (n 10))
+  (do-top-percents #'last-six-under-percentage-return n))
+(defun top-last-six-home-under-percents (&optional (n 10))
+  (do-top-percents #'last-six-home-under-percentage-return n))
+(defun top-last-six-away-under-percents (&optional (n 10))
+  (do-top-percents #'last-six-away-under-percentage-return n))
 
 ;; Returns stats
 
@@ -1036,13 +1090,6 @@
 	(return-from show-fixtures nil))
   (dolist (game *fixtures*)
     (format t "~%~a - ~a v ~a" (string-upcase (fleague game)) (fhome game) (faway game))))
-
-(defun get-teams (csv-league &optional (teams *teams*))
-  "Returns a list of teams in the given CSV-LEAGUE"
-  (cond ((null teams) nil)
-        ((string-equal csv-league (first (first teams))) ; league id
-		 (second (first teams))) ;; list of league teams
-        (t (get-teams csv-league (rest teams)))))
 
 (defun get-team-stats (team)
   "Get stats for TEAM"
