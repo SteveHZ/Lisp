@@ -1913,3 +1913,417 @@ sub poisson {
 							(setf my-list (append my-list (get-btts (csv-filename league)))))
 						leagues)
 				#'> :key #'second))))
+
+;; **************************************************************
+;;
+;;  DSL Returns
+;;
+
+(defun returns (odds-fn games-list)
+  (labels ((inner (inner-list acc)
+			 (if (null inner-list) acc
+				 (inner (rest inner-list)
+						(+ acc (funcall odds-fn (first inner-list)))))))
+    (inner games-list 0)))
+
+(defun ha-returns (team odds-fn games-list)
+  (labels ((inner (inner-list acc)
+			 (if (null inner-list) acc
+				 (inner (rest inner-list)
+						(+ acc (funcall odds-fn team (first inner-list)))))))
+	(inner games-list 0)))
+
+(defun percentage-return (games-fn returns-fn team)
+  (let ((ngames (length (funcall games-fn team))))
+	(cond ((zerop ngames) (values 0 0 0))
+		  (t (let ((team-return (funcall returns-fn team)))
+			   (values (/ team-return ngames)
+					   team-return
+					   ngames))))))
+
+;; Returns per team
+
+(defun home-win-returns (team)
+  (returns #'home-odds (home-wins team)))
+(defun away-win-returns (team)
+  (returns #'away-odds (away-wins team)))
+
+(defun home-win-percentage-return (team)
+  (percentage-return #'homes #'home-win-returns team))
+(defun away-win-percentage-return (team)
+  (percentage-return #'aways #'away-win-returns team))
+
+(defun home-loss-returns (team)
+  (returns #'away-odds (home-defeats team)))
+(defun away-loss-returns (team)
+  (returns #'home-odds (away-defeats team)))
+
+(defun home-loss-percentage-return (team)
+  (percentage-return #'homes #'home-loss-returns team))
+(defun away-loss-percentage-return (team)
+  (percentage-return #'aways #'away-loss-returns team))
+
+(defun home-away-win-returns (team)
+  (+ (home-win-returns team)
+     (away-win-returns team)))
+(defun home-away-loss-returns (team)
+  (+ (home-loss-returns team)
+     (away-loss-returns team)))
+
+(defun home-away-win-percentage-return (team)
+  (percentage-return #'home-aways #'home-away-win-returns team))
+(defun home-away-loss-percentage-return (team)
+  (percentage-return #'home-aways #'home-away-loss-returns team))
+
+(defun draw-returns (team)
+  (returns #'draw-odds (draws team)))
+(defun home-draw-returns (team)
+  (returns #'draw-odds (home-draws team)))
+(defun away-draw-returns (team)
+  (returns #'draw-odds (away-draws team)))
+
+(defun draw-percentage-return (team)
+  (percentage-return #'home-aways #'draw-returns team))
+(defun home-draw-percentage-return (team)
+  (percentage-return #'homes #'home-draw-returns team))
+(defun away-draw-percentage-return (team)
+  (percentage-return #'aways #'away-draw-returns team))
+
+(defun home-away-over-returns (team)
+  (returns #'over-odds (home-away-overs team)))
+(defun home-over-returns (team)
+  (returns #'over-odds (home-overs team)))
+(defun away-over-returns (team)
+  (returns #'over-odds (away-overs team)))
+
+(defun over-percentage-return (team)
+  (percentage-return #'home-aways #'home-away-over-returns team))
+(defun home-over-percentage-return (team)
+  (percentage-return #'homes #'home-over-returns team))
+(defun away-over-percentage-return (team)
+  (percentage-return #'aways #'away-over-returns team))
+
+(defun home-away-under-returns (team)
+  (returns #'under-odds (home-away-unders team)))
+(defun home-under-returns (team)
+  (returns #'under-odds (home-unders team)))
+(defun away-under-returns (team)
+  (returns #'under-odds (away-unders team)))
+
+(defun under-percentage-return (team)
+  (percentage-return #'home-aways #'home-away-under-returns team))
+(defun home-under-percentage-return (team)
+  (percentage-return #'homes #'home-under-returns team))
+(defun away-under-percentage-return (team)
+  (percentage-return #'aways #'away-under-returns team))
+
+(defun last-six-win-returns (team)
+  (ha-returns team #'home-away-odds (wins-in-last-six team)))
+(defun last-six-homes-return (team)
+  (returns #'home-odds (wins-in-last-six-homes team)))
+(defun last-six-aways-return (team)
+  (returns #'away-odds (wins-in-last-six-aways team)))
+
+(defun last-six-win-percentage-return (team)
+  (percentage-return #'last-six #'last-six-win-returns team))
+(defun last-six-home-win-percentage-return (team)
+  (percentage-return #'last-six-homes #'last-six-homes-return team))
+(defun last-six-away-win-percentage-return (team)
+  (percentage-return #'last-six-aways #'last-six-aways-return team))
+
+(defun last-six-loss-returns (team)
+  (ha-returns team #'home-away-lost-odds (defeats-in-last-six team)))
+(defun last-six-draw-return (team)
+  (returns #'draw-odds (draws-in-last-six team)))
+
+(defun last-six-loss-percentage-return (team)
+  (percentage-return #'last-six #'last-six-loss-returns team))
+(defun last-six-draw-percentage-return (team)
+  (percentage-return #'last-six #'last-six-draw-return team))
+
+(defun last-six-over-returns (team)
+  (returns #'over-odds (last-six-overs team)))
+(defun last-six-over-percentage-return (team)
+  (percentage-return #'last-six #'last-six-over-returns team))
+(defun last-six-under-returns (team)
+  (returns #'under-odds (last-six-unders team)))
+(defun last-six-under-percentage-return (team)
+  (percentage-return #'last-six #'last-six-under-returns team))
+
+(defun last-six-home-over-returns (team)
+  (returns #'over-odds (last-six-home-overs team)))
+(defun last-six-home-over-percentage-return (team)
+  (percentage-return #'last-six-homes #'last-six-home-over-returns team))
+(defun last-six-home-under-returns (team)
+  (returns #'under-odds (last-six-home-unders team)))
+(defun last-six-home-under-percentage-return (team)
+  (percentage-return #'last-six-homes #'last-six-home-under-returns team))
+
+(defun last-six-away-over-returns (team)
+  (returns #'over-odds (last-six-away-overs team)))
+(defun last-six-away-over-percentage-return (team)
+  (percentage-return #'last-six-aways #'last-six-away-over-returns team))
+(defun last-six-away-under-returns (team)
+  (returns #'under-odds (last-six-away-unders team)))
+(defun last-six-away-under-percentage-return (team)
+  (percentage-return #'last-six-aways #'last-six-away-under-returns team))
+
+;; Returns per league
+
+(defun percents-table (my-list)
+  (format-table t my-list
+				:column-label '("League" "Team" "Games" "Return" "Percentage")
+				:column-align '(:left :center :center :center :center)))
+
+(defun league-percents (fn csv-league)
+  "Calculate (loss) percentage returns for each TEAM in LEAGUE"
+  (mapcar #'(lambda (team)
+			  (multiple-value-bind (percent team-return ngames) (funcall fn team)
+				(list (string-upcase csv-league)
+					  team
+					  ngames
+					  (my-round team-return 0.01)
+					  (my-round percent 0.01))))
+          (get-teams csv-league)))
+
+(defun do-league-percents (fn league)
+  (percents-table
+   (safe-sort (league-percents fn league) #'> :key #'fifth)))
+
+(defun do-win-percents (league)
+  "Show percentage returns for each team in LEAGUE"
+  (do-league-percents #'home-away-win-percentage-return league))
+
+(defun do-loss-percents (league)
+  "Show loss percentages for each team in LEAGUE"
+  (do-league-percents #'home-away-loss-percentage-return league))
+
+(defun do-home-win-percents (league)
+  "Show home percentage returns for each team in LEAGUE"
+  (do-league-percents #'home-win-percentage-return league))
+
+(defun do-home-loss-percents (league)
+  "Show home loss percentages for each team in LEAGUE"
+  (do-league-percents #'home-loss-percentage-return league))
+
+(defun do-away-win-percents (league)
+  "Show away percentage returns for each team in LEAGUE"
+  (do-league-percents #'away-win-percentage-return league))
+
+(defun do-away-loss-percents (league)
+  "Show away loss percentages for each team in LEAGUE"
+  (do-league-percents #'away-loss-percentage-return league))
+
+(defun do-draw-percents (league)
+  "Show percentage returns for each team in LEAGUE"
+  (do-league-percents #'draw-percentage-return league))
+
+(defun do-home-draw-percents (league)
+  "Show percentage returns for each team in LEAGUE"
+  (do-league-percents #'home-draw-percentage-return league))
+
+(defun do-away-draw-percents (league)
+  "Show percentage returns for each team in LEAGUE"
+  (do-league-percents #'away-draw-percentage-return league))
+
+(defun do-over-percents (league)
+  (do-league-percents #'over-percentage-return league))
+(defun do-under-percents (league)
+  (do-league-percents #'under-percentage-return league))
+
+(defun do-last-six-win-percents (league)
+  (do-league-percents #'last-six-win-percentage-return league))
+(defun do-last-six-home-win-percents (league)
+  (do-league-percents #'last-six-home-win-percentage-return league))
+(defun do-last-six-away-wins-percents (league)
+  (do-league-percents #'last-six-away-win-percentage-return league))
+(defun do-last-six-draw-percents (league)
+  (do-league-percents #'last-six-draw-percentage-return league))
+
+(defun last-six-over-percents (league)
+  (do-league-percents #'last-six-over-percentage-return league))
+(defun last-six-home-over-percents (league)
+  (do-league-percents #'last-six-home-over-percentage-return league))
+(defun last-six-away-over-percents (league)
+  (do-league-percents #'last-six-away-over-percentage-return league))
+
+(defun last-six-under-percents (league)
+  (do-league-percents #'last-six-under-percentage-return league))
+(defun last-six-home-under-percents (league)
+  (do-league-percents #'last-six-home-under-percentage-return league))
+(defun last-six-away-under-percents (league)
+  (do-league-percents #'last-six-away-under-percentage-return league))
+
+(defun percents-all (fn)
+  "Calculate percentage returns for all teams in all leagues"
+  (let ((my-list nil))
+    (dolist (league *leagues*)
+      (dolist (team (league-percents fn (csv-filename league)))
+        (push team my-list)))
+    my-list))
+
+(defun do-all-percents (fn)
+  (percents-table
+   (safe-sort (percents-all fn) #'< :key #'fifth)))
+
+(defun do-win-percents-all ()
+  "Show percentage returns for all teams"
+  (do-all-percents #'home-away-win-percentage-return))
+
+(defun do-loss-percents-all ()
+  "Show loss percentages for all teams"
+  (do-all-percents #'home-away-loss-percentage-return))
+
+(defun do-home-win-percents-all ()
+  "Show home percentage returns for all teams"
+  (do-all-percents #'home-win-percentage-return))
+
+(defun do-home-loss-percents-all ()
+  "Show home loss percentages for all teams"
+  (do-all-percents #'home-loss-percentage-return))
+
+(defun do-away-win-percents-all ()
+  "Show away percentage returns for all teams"
+  (do-all-percents #'away-win-percentage-return))
+
+(defun do-away-loss-percents-all ()
+  "Show away loss percentages for all teams"
+  (do-all-percents #'away-loss-percentage-return))
+
+(defun do-draw-percents-all ()
+  "Show draw percentage returns for all teams"
+  (do-all-percents #'draw-percentage-return))
+
+(defun do-home-draw-percents-all ()
+  "Show home draw percentage returns for all teams"
+  (do-all-percents #'home-draw-percentage-return))
+
+(defun do-away-draw-percents-all ()
+  "Show away draw percentage returns for all teams"
+  (do-all-percents #'away-draw-percentage-return))
+
+(defun do-over-percents-all ()
+  "Show over 2.5 percentage returns for all teams"
+  (do-all-percents #'over-percentage-return))
+
+(defun do-home-over-percents-all ()
+  "Show over 2.5 home percentage returns for all teams"
+  (do-all-percents #'home-over-percentage-return))
+
+(defun do-away-over-percents-all ()
+  "Show over 2.5 away percentage returns for all teams"
+  (do-all-percents #'away-over-percentage-return))
+
+(defun do-under-percents-all ()
+  "Show under 2.5 percentage returns for all teams"
+  (do-all-percents #'under-percentage-return))
+
+(defun do-home-under-percents-all ()
+  "Show under 2.5 home percentage returns for all teams"
+  (do-all-percents #'home-under-percentage-return))
+
+(defun do-away-under-percents-all ()
+  "Show under 2.5 away percentage returns for all teams"
+  (do-all-percents #'away-under-percentage-return))
+
+(defun do-last-six-win-percents-all ()
+  (do-all-percents #'last-six-win-percentage-return))
+(defun do-last-six-home-win-percents-all ()
+  (do-all-percents #'last-six-home-win-percentage-return))
+(defun do-last-six-away-win-percents-all ()
+  (do-all-percents #'last-six-away-win-percentage-return))
+(defun do-last-six-draw-percents-all ()
+  (do-all-percents #'last-six-draw-percentage-return))
+(defun do-last-six-loss-percents-all ()
+  (do-all-percents #'last-six-loss-percentage-return))
+
+(defun do-last-six-over-percents-all ()
+  (do-all-percents #'last-six-over-percentage-return))
+(defun do-last-six-home-over-percents-all ()
+  (do-all-percents #'last-six-home-over-percentage-return))
+(defun do-last-six-away-over-percents-all ()
+  (do-all-percents #'last-six-away-over-percentage-return))
+
+(defun do-last-six-under-percents-all ()
+  (do-all-percents #'last-six-under-percentage-return))
+(defun do-last-six-home-under-percents-all ()
+  (do-all-percents #'last-six-home-under-percentage-return))
+(defun do-last-six-away-under-percents-all ()
+  (do-all-percents #'last-six-away-under-percentage-return))
+
+;; Show only top n teams in all leagues for each predicate
+
+(defun do-top-percents (fn n)
+  (percents-table
+   (first-n n (safe-sort (percents-all fn)
+				#'> :key #'fifth))))
+
+(defun top-win-percents (&optional (n 10))
+  "Show top win percentage returns for all teams"
+  (do-top-percents #'home-away-win-percentage-return n))
+
+(defun top-loss-percents (&optional (n 10))
+  "Show top loss percentages for all teams"
+  (do-top-percents #'home-away-loss-percentage-return n))
+
+(defun top-home-win-percents (&optional (n 10))
+  "Show top home percentage returns for all teams"
+  (do-top-percents #'home-win-percentage-return n))
+
+(defun top-home-loss-percents (&optional (n 10))
+  "Show top home loss percentages for all teams"
+  (do-top-percents #'home-loss-percentage-return n))
+
+(defun top-away-win-percents (&optional (n 10))
+  "Show top away percentage returns for all teams"
+  (do-top-percents #'away-win-percentage-return n))
+
+(defun top-away-loss-percents (&optional (n 10))
+  "Show top away loss percentages for all teams"
+  (do-top-percents #'away-loss-percentage-return n))
+
+(defun top-draw-percents (&optional (n 10))
+  "Show top draw percentage returns for all teams"
+  (do-top-percents #'draw-percentage-return n))
+
+(defun top-home-draw-percents (&optional (n 10))
+  "Show top home draw percentage returns for all teams"
+  (do-top-percents #'home-draw-percentage-return n))
+
+(defun top-away-draw-percents (&optional (n 10))
+  "Show top away draw percentage returns for all teams"
+  (do-top-percents #'away-draw-percentage-return n))
+
+(defun top-over-percents (&optional (n 10))
+  "Show top over percentage returns for all teams"
+  (do-top-percents #'over-percentage-return n))
+
+(defun top-under-percents (&optional (n 10))
+  "Show top under percentage returns for all teams"
+  (do-top-percents #'under-percentage-return n))
+
+(defun top-last-six-win-percents (&optional (n 10))
+  (do-top-percents #'last-six-win-percentage-return n))
+(defun top-last-six-home-win-percents (&optional (n 10))
+  (do-top-percents #'last-six-home-win-percentage-return n))
+(defun top-last-six-away-win-percents (&optional (n 10))
+  (do-top-percents #'last-six-away-win-percentage-return n))
+(defun top-last-six-draw-percents (&optional (n 10))
+  (do-top-percents #'last-six-draw-percentage-return n))
+(defun top-last-six-loss-percents (&optional (n 10))
+  (do-top-percents #'last-six-loss-percentage-return n))
+
+(defun top-last-six-over-percents (&optional (n 10))
+  (do-top-percents #'last-six-over-percentage-return n))
+(defun top-last-six-home-over-percents (&optional (n 10))
+  (do-top-percents #'last-six-home-over-percentage-return n))
+(defun top-last-six-away-over-percents (&optional (n 10))
+  (do-top-percents #'last-six-away-over-percentage-return n))
+
+(defun top-last-six-under-percents (&optional (n 10))
+  (do-top-percents #'last-six-under-percentage-return n))
+(defun top-last-six-home-under-percents (&optional (n 10))
+  (do-top-percents #'last-six-home-under-percentage-return n))
+(defun top-last-six-away-under-percents (&optional (n 10))
+  (do-top-percents #'last-six-away-under-percentage-return n))
+
