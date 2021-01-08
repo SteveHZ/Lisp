@@ -335,29 +335,32 @@
 	(,#'do-series-home-defeats-calc "Home Defeats")
 	(,#'do-series-away-defeats-calc "Away Defeats")))
 
+
+;; BOTH OF THESE SHOULD BE THE OTHER WAY ROUND - name then func
+;; and series-list above (in fb.lisp)
 ;; ====
 
 (defparameter returns-funcs
-  `((,#'home-away-win-percentage-return "Wins")
-	(,#'draw-percentage-return "Draws")
-	(,#'home-away-loss-percentage-return "Defeats")
-	(,#'over-percentage-return "Overs")
-	(,#'under-percentage-return "Unders")))
+  `(("Wins" ,#'home-away-win-percentage-return)
+	("Draws" ,#'draw-percentage-return)
+	("Defeats" ,#'home-away-loss-percentage-return)
+	("Overs" ,#'over-percentage-return)
+	("Unders" ,#'under-percentage-return)))
 
-(defun write-returns (filename return-fns)
+(defun write-returns (filename return-fns n)
   (with-open-file (stream filename
 						  :direction :output
 						  :if-exists :supersede)
 	(dolist (returns-pair return-fns)
-	  (destructuring-bind (return-fn result) returns-pair
-		(format t "~%Writing ~a..." result)
+	  (destructuring-bind (result return-fn) returns-pair
+		(format t "Writing ~a...~%" result)
 		(format stream "~a~%" result)
-		(dolist (my-list (do-top%-list 20 return-fn))
-		  (format stream "~{~a,~a,~a,~a,~a~%~}" my-list)))
+		(dolist (my-list (do-top%-list return-fn n))
+		  (format stream "~{~a~^,~}~%" my-list)))
 	  (format stream "~%"))))
 
-(defun export-returns ()
-  (write-returns "c:/mine/lisp/data/returns.csv" returns-funcs)
+(defun export-returns (&optional (n 20))
+  (write-returns "c:/mine/lisp/data/returns.csv" returns-funcs n)
   t)
 
 

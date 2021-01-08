@@ -572,10 +572,10 @@
 (defun away-loss-returns (team)
   (returns #'home-odds (away-defeats team)))
 
-(defun home-away-win-returns (team)
+(defun win-returns (team)
   (+ (home-win-returns team)
      (away-win-returns team)))
-(defun home-away-loss-returns (team)
+(defun loss-returns (team)
   (+ (home-loss-returns team)
      (away-loss-returns team)))
 
@@ -638,14 +638,14 @@
 ;; ***************************************************************
 ;; Calculate percentage returns
 
-(defun home-away-win-percentage-return (team)
+(defun win-percentage-return (team)
   (ha-percentage-return #'home-aways #'wins #'home-away-odds team))
 (defun home-win-percentage-return (team)
   (percentage-return #'homes #'home-wins #'home-odds team))
 (defun away-win-percentage-return (team)
   (percentage-return #'aways #'away-wins #'away-odds team))
 
-(defun home-away-loss-percentage-return (team)
+(defun loss-percentage-return (team)
   (ha-percentage-return #'home-aways #'defeats #'home-away-lost-odds team))
 (defun home-loss-percentage-return (team)
   (percentage-return #'homes #'home-defeats #'away-odds team))
@@ -732,11 +732,11 @@
 	 (percents-table
 	  (safe-sort (league-percents ,returns-fn league) #'> :key #'fifth))))
 
-(do-league% do-win-percents #'home-away-win-percentage-return)
+(do-league% do-win-percents #'win-percentage-return)
 (do-league% do-home-win-percents #'home-win-percentage-return)
 (do-league% do-away-win-percents #'away-win-percentage-return)
 
-(do-league% do-loss-percents #'home-away-loss-percentage-return)
+(do-league% do-loss-percents #'loss-percentage-return)
 (do-league% do-home-loss-percents #'home-loss-percentage-return)
 (do-league% do-away-loss-percents #'away-loss-percentage-return)
 
@@ -788,11 +788,11 @@
 	 (percents-table
 	  (safe-sort (percents-all ,returns-fn) #'< :key #'fifth))))
 
-(do-all% do-win-percents-all #'home-away-win-percentage-return)
+(do-all% do-win-percents-all #'win-percentage-return)
 (do-all% do-home-win-percents-all #'home-win-percentage-return)
 (do-all% do-away-win-percents-all #'away-win-percentage-return)
 
-(do-all% do-loss-percents-all #'home-away-loss-percentage-return)
+(do-all% do-loss-percents-all #'loss-percentage-return)
 (do-all% do-home-loss-percents-all #'home-loss-percentage-return)
 (do-all% do-away-loss-percents-all #'away-loss-percentage-return)
 
@@ -831,25 +831,19 @@
 ;; ***************************************************************
 ;; Show only top n teams in all leagues for each predicate
 
-(defun do-top%-list (n returns-fn)
+(defun do-top%-list (returns-fn n)
   (first-n n (safe-sort (percents-all returns-fn)
 			   #'> :key #'fifth)))
 
 (defmacro do-top% (fn-name returns-fn)
   `(defun ,fn-name (&optional (n 10))
-	 (percents-table (do-top%-list n ,returns-fn))))
+	 (percents-table (do-top%-list ,returns-fn n))))
 
-(defmacro xdo-top% (fn-name returns-fn)
-  `(defun ,fn-name (&optional (n 10))
-	 (percents-table
-	  (first-n n (safe-sort (percents-all ,returns-fn)
-				   #'> :key #'fifth)))))
-
-(do-top% top-win-percents #'home-away-win-percentage-return)
+(do-top% top-win-percents #'win-percentage-return)
 (do-top% top-home-win-percents #'home-win-percentage-return)
 (do-top% top-away-win-percents #'away-win-percentage-return)
 
-(do-top% top-loss-percents #'home-away-loss-percentage-return)
+(do-top% top-loss-percents #'loss-percentage-return)
 (do-top% top-home-loss-percents #'home-loss-percentage-return)
 (do-top% top-away-loss-percents #'away-loss-percentage-return)
 
@@ -899,8 +893,8 @@
 (defun get-home-away-stats-detail (team)
   (with-stats-format "All"
 	(length (home-aways team))
-	(home-away-win-returns team) (home-away-win-percentage-return team)
-	(home-away-loss-returns team) (home-away-loss-percentage-return team)
+	(win-returns team) (win-percentage-return team)
+	(loss-returns team) (loss-percentage-return team)
 	(draw-returns team) (draw-percentage-return team)
 	(home-away-over-returns team) (over-percentage-return team)
 	(home-away-under-returns team) (under-percentage-return team)))
@@ -939,6 +933,39 @@
   (get-home-away-stats-detail team)
   (get-home-stats-detail team)
   (get-away-stats-detail team))
+
+;; ***************************************************************
+;; Returns spreadsheet
+
+;; Possibly do last-six as well then write eg season wins and last six wins on same sheet ?
+
+(defparameter returns-funcs
+  `(("Wins" ,#'win-percentage-return)
+	("Draws" ,#'draw-percentage-return)
+	("Defeats" ,#'loss-percentage-return)
+	("Overs" ,#'over-percentage-return)
+	("Unders" ,#'under-percentage-return)
+	("Last Six Wins" ,#'last-six-win-percentage-return)
+	("Last Six Draws" ,#'last-six-draw-percentage-return)
+	("Last Six Defeats" ,#'last-six-loss-percentage-return)
+	("Last Six Overs" ,#'last-six-over-percentage-return)
+	("Last Six Unders" ,#'last-six-under-percentage-return)))
+
+(defun write-returns (filename return-fns n)
+  (with-open-file (stream filename
+						  :direction :output
+						  :if-exists :supersede)
+	(dolist (returns-pair return-fns)
+	  (destructuring-bind (result return-fn) returns-pair
+		(format t "Writing ~a...~%" result)
+		(format stream "~a~%" result)
+		(dolist (my-list (do-top%-list return-fn n))
+		  (format stream "~{~a~^,~}~%" my-list)))
+	  (format stream "~%"))))
+
+(defun export-returns (&optional (n 50))
+  (write-returns "c:/mine/lisp/data/returns.csv" returns-funcs n)
+  t)
 
 ;; ***************************************************************
 
@@ -2059,22 +2086,22 @@
 							(,s5 "s5")))
 
 (defparameter series-funcs
-  `((,#'do-series-wins-calc "Wins")
-	(,#'do-series-home-wins-calc "Home Wins")
-	(,#'do-series-away-wins-calc "Away Wins")
-	(,#'do-series-draws-calc "Draws")
-	(,#'do-series-home-draws-calc "Home Draws")
-	(,#'do-series-away-draws-calc "Away Draws")
-	(,#'do-series-defeats-calc "Defeats")
-	(,#'do-series-home-defeats-calc "Home Defeats")
-	(,#'do-series-away-defeats-calc "Away Defeats")))
+  `(("Wins" ,#'do-series-wins-calc)
+	("Home Wins" ,#'do-series-home-wins-calc)
+	("Away Wins" ,#'do-series-away-wins-calc)
+	("Draws" ,#'do-series-draws-calc)
+	("Home Draws" ,#'do-series-home-draws-calc)
+	("Away Draws" ,#'do-series-away-draws-calc)
+	("Defeats" ,#'do-series-defeats-calc)
+	("Home Defeats" ,#'do-series-home-defeats-calc)
+	("Away Defeats",#'do-series-away-defeats-calc)))
 
 (defun write-series (series filename)
   (with-open-file (stream filename
 						  :direction :output
 						  :if-exists :supersede)
 	(dolist (series-pair series-funcs)
-	  (destructuring-bind (series-fn series-result) series-pair
+	  (destructuring-bind (series-result series-fn) series-pair
 		(format stream "~a~%" series-result)
 		(dolist (my-list (funcall series-fn series 20))
 		  (format stream "~a,~a,~a~%"
