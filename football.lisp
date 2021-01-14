@@ -329,6 +329,10 @@
 
 (defun is-win (team game)
   (home-away-win-result team game))
+(defun is-defeat (team game)
+  (home-away-lost-result team game))
+(defun is-draw (team game)
+  (home-away-draw-result team game))
 
 (defun is-over (game &optional (n 2.5))
   (< n (+ (home-score game)
@@ -937,8 +941,6 @@
 ;; ***************************************************************
 ;; Returns spreadsheet
 
-;; Possibly do last-six as well then write eg season wins and last six wins on same sheet ?
-
 (defparameter returns-funcs
   `(("Wins" ,#'win-percentage-return)
 	("Draws" ,#'draw-percentage-return)
@@ -968,11 +970,10 @@
   t)
 
 ;; ***************************************************************
-
 ;; DSL
 ;; Accessor macros and functions for structures
 ;; Find stats within *ht-stats* hash for TEAM in LEAGUE
-
+;;
 
 ;; Enables writing (get-home-for "Stoke" "e1)
 ;; rather than (stats-home-for (gethash "Stoke" (gethash "e1" *ht-stats*)))
@@ -1054,10 +1055,7 @@
 (defun set-league-stats-av-away-goals (league-name val) (set-value league-stats-av-away-goals league-name *ht-league-stats* val))
 
 ;; ***************************************************************
-
-;;
 ;; Utilities
-;;
 
 (defun export-csv (data file)
   (with-open-file (stream file :direction :output
@@ -1137,6 +1135,9 @@
 	(with-standard-io-syntax
 	  (print *my-teams* out))))
 
+(defun my-teams ()
+  *my-teams*)
+
 (defun my-teams-add (&rest team-list)
   (dolist (team team-list)
 	(push team *my-teams*))
@@ -1167,10 +1168,9 @@
    :column-align '(:center :center :center :center)))
 
 ;; ***************************************************************
-
-;;
 ;; Odds utilities
 ;; Convert odds between different formats
+;;
 
 (defun decimal-to-percent (odds)
   (* 100 (/ 1.0 odds)))
@@ -1229,8 +1229,6 @@
 	new-stake))
 
 ;; ***************************************************************
-
-;;
 ;; CSV file utilities
 ;;
 
@@ -1324,9 +1322,7 @@
   "Transform date from DD/MM/YYYY to integer YYYYMMDD"
   (parse-integer (format nil "~{~a~}" (transform-date date))))
 
-; **************************************************************
-
-;;
+;; **************************************************************
 ;; DSL Expects
 ;;
 
@@ -1481,11 +1477,9 @@
   (defparameter *teams-file* *summer-teams-file*)
   (start))
 
-;;;*******************************************
-
-;;;
-;;; Date routines
-;;;
+;; *******************************************
+;; Date routines
+;;
 
 (defvar *months*
   '((01 31) (02 28) (03 31)
@@ -1555,11 +1549,9 @@
        (* month 100)
        date)))
 
-;;;*******************************************
-
-;;;
-;;; Season stats
-;;;
+;; *******************************************
+;; Season stats
+;;
 
 (defun do-season (csv-league)
   "Iterate through each CSV-LEAGUE season, breaking data into seperate lists
@@ -1648,11 +1640,9 @@
   (show-ordered-expects))
 
 
-;;;*******************************************
-
-;;;
-;;; Series stats
-;;;
+;; *******************************************
+;; Series stats
+;;
 
 (defmacro with-all-teams ((team leagues) &body body)
   `(dolist (league ,leagues) ;;exposes league for capture by macro user
@@ -1842,11 +1832,9 @@
 (defun count-away-unders (&key (show 10) (goals 2.5))
   (count-ou #'aways #'is-under show goals))
 
-;;;*******************************************
-
-;;;
-;;; DSL Series
-;;;
+;; *******************************************
+;; DSL Series
+;;
 
 (defun make-circular-list (my-list)
   (setf (cdr (last my-list)) my-list))
@@ -1930,6 +1918,26 @@
 						(setf my-list (copy-list x))))
 				 (car my-list))))))
 
+(defun make-streak-series (my-list)
+  (let ((x (copy-list my-list))
+		(count 0))
+
+	#'(lambda (&optional (result ""))
+		
+		(cond ((or (string-equal result "L")
+				   (string-equal result "R"))
+			   (setf count 0)
+			   (setf my-list (copy-list x))
+			   (car my-list))
+			  ((string-equal result "")
+			   (car my-list))
+			  ((string-equal result "P")
+			   (print x))
+			  (t (setf my-list (rest my-list))
+				 (cond ((null my-list)
+						(setf my-list (copy-list x))))
+				 (car my-list))))))
+
 (defun series-test (series)
   (let ((in ""))
 	(print (funcall series "R"))
@@ -1949,6 +1957,9 @@
 (defparameter s4 (make-long-series '(2 2 4 4 4 6 6 6 8 8 8)))
 (defparameter s5 (make-circular-series '(1 2 2 3 3 5 5) '(3 4 5)))
 (defparameter s6 (make-short-series '(2 3 4 5 6 8)))
+
+(defparameter st4 (make-streak-series '(4 2 1)))
+(defparameter st10 (make-streak-series '(10 6 2)))
 
 (defun series-current (series)
   (funcall series))
@@ -2186,6 +2197,110 @@
   (do-team-series team series #'homes #'series-unders #'series-under-odds))
 (defun do-team-series-away-unders (team series)
   (do-team-series team series #'aways #'series-unders #'series-under-odds))
+
+;; *******************************************
+;; DSL Streaks
+;;
+
+(defun do-streak (s games-fn result-fn odds-fn)
+  "Returns a list of all teams sorted by their returns using series S given the 
+   games returned by GAMES-FN which match results from RESULT-FN at odds ODDS-FN"
+  
+  (let ((my-list nil))
+	(with-all-teams (team *leagues*)
+	  (let ((stake 0)
+			(returns 0)
+			(signal-result 0))
+		(series-reset s)
+
+		(dolist (game (funcall games-fn team))
+		  (let ((current (series-current s)))
+			(if (> signal-result 0)
+				(+= stake current))
+			(cond ((funcall result-fn team game)
+				   (when (> signal-result 0)
+					 (+= returns (* current (funcall odds-fn team game)))
+					 (series-update s "W"))
+
+				   (incf signal-result)
+				   (if (> signal-result 3)
+					   (setf signal-result 0)))
+				  (t (series-update s "R")
+					 (setf signal-result 0)))))
+		
+		(if (> stake 0)
+			(push (list (string-upcase (csv-filename league))
+						team
+						stake
+						(format nil "~6,2f" returns)
+						(my-round (* 100 (/ returns stake)) 0.01))
+				  my-list))))
+
+	(sort my-list #'> :key #'fifth)))
+
+(defun do-streak-wins-calc (series &optional (n 10))
+  (first-n n (do-streak series #'home-aways #'home-away-win-result #'home-away-odds)))
+(defun do-streak-defeats-calc (series &optional (n 10))
+  (first-n n (do-streak series #'home-aways #'home-away-lost-result #'home-away-lost-odds)))
+(defun do-streak-draws-calc (series &optional (n 10))
+  (first-n n (do-streak series #'home-aways #'home-away-draw-result #'series-draw-odds)))
+(defun do-streak-overs-calc (series &optional (n 10))
+  (first-n n (do-streak series #'home-aways #'series-overs #'series-over-odds)))
+(defun do-streak-unders-calc (series &optional (n 10))
+  (first-n n (do-streak series #'home-aways #'series-unders #'series-under-odds)))
+
+(defun do-streak-wins (series &optional (n 10))
+  (series-table (do-streak-wins-calc series n)))
+(defun do-streak-defeats (series &optional (n 10))
+  (series-table (do-streak-defeats-calc series n)))
+(defun do-streak-draws (series &optional (n 10))
+  (series-table (do-streak-draws-calc series n)))
+(defun do-streak-overs (series &optional (n 10))
+  (series-table (do-streak-overs-calc series n)))
+(defun do-streak-unders (series &optional (n 10))
+  (series-table (do-streak-unders-calc series n)))
+
+(defun do-team-streak (s team games-fn result-fn odds-fn)
+  "Returns a list of all teams sorted by their returns using series S given the 
+   games returned by GAMES-FN which match results from RESULT-FN at odds ODDS-FN"
+  
+  (let ((stake 0)
+		(returns 0)
+		(signal-result 0))
+	(series-reset s)
+
+	(dolist (game (funcall games-fn team))
+	  (let ((current (series-current s)))
+		(if (> signal-result 0)
+			(+= stake current))
+		(cond ((funcall result-fn team game)
+			   (if (> signal-result 0)
+				   (progn
+					 (+= returns (* current (funcall odds-fn team game)))
+					 (series-update s "W")
+					 (format t "~%W : ~a v ~a Stake : ~a Return : ~a" (home-team game) (away-team game) stake returns))
+				   (format t "~%X : ~a v ~a ** SIGNAL **" (home-team game) (away-team game)))
+			   (incf signal-result)
+			   (if (> signal-result 3)
+				   (setf signal-result 0))			   )
+
+			  (t (series-update s "R")
+				 (if (> signal-result 0)
+					 (format t "~%L : ~a v ~a Stake : ~a Return : ~a" (home-team game) (away-team game) stake returns)
+					 (format t "~%X : ~a v ~a" (home-team game) (away-team game)))
+				 
+				 (setf signal-result 0)))))))
+
+(defun do-team-streak-wins-calc (team series)
+  (do-team-streak series team #'home-aways #'home-away-win-result #'home-away-odds))
+(defun do-team-streak-defeats-calc (team series)
+  (do-team-streak series team #'home-aways #'home-away-lost-result #'home-away-lost-odds))
+(defun do-team-streak-draws-calc (team series)
+  (do-team-streak series team #'home-aways #'home-away-draw-result #'series-draw-odds))
+(defun do-team-streak-overs-calc (team series)
+  (do-team-streak series team #'home-aways #'series-overs #'series-over-odds))
+(defun do-team-streak-unders-calc (team series)
+  (do-team-streak series team #'home-aways #'series-unders #'series-under-odds))
 
 (defmacro update-if-gt (counter max-seen)
   `(when (> ,counter ,max-seen)
