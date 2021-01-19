@@ -1167,6 +1167,12 @@
    :column-label '("Date" "League" "Home" "Away")
    :column-align '(:center :center :center :center)))
 
+(defun list-games (teams)
+  (mapcar #'(lambda (team)
+			  (format t "~%~%~a :~%" team)
+			  (say-last-six team :odds t))
+		  teams))
+
 ;; ***************************************************************
 ;; Odds utilities
 ;; Convert odds between different formats
@@ -1959,6 +1965,7 @@
 (defparameter s6 (make-short-series '(2 3 4 5 6 8)))
 
 (defparameter st4 (make-streak-series '(4 2 1)))
+(defparameter st5 (make-streak-series '(5 3 1)))
 (defparameter st10 (make-streak-series '(10 6 2)))
 
 (defun series-current (series)
@@ -2005,13 +2012,13 @@
 				  (t (setf result "L")))
 			(series-update s result)))
 		
-		(if (> stake 0)
-			(push (list (string-upcase (csv-filename league))
-						team
-						stake
-						(format nil "~6,2f" returns)
-						(my-round (* 100 (/ returns stake)) 0.01))
-				  my-list))))
+		(when (> stake 0)
+		  (push (list (string-upcase (csv-filename league))
+					  team
+					  stake
+					  (format nil "~6,2f" returns)
+					  (my-round (* 100 (/ returns stake)) 0.01))
+				my-list))))
 
 	(sort my-list #'> :key #'fifth)))
 
@@ -2107,26 +2114,26 @@
 	("Home Defeats" ,#'do-series-home-defeats-calc)
 	("Away Defeats",#'do-series-away-defeats-calc)))
 
-(defun write-series (series filename)
+(defun write-series (series filename &optional (n 20))
   (with-open-file (stream filename
 						  :direction :output
 						  :if-exists :supersede)
 	(dolist (series-pair series-funcs)
 	  (destructuring-bind (series-result series-fn) series-pair
 		(format stream "~a~%" series-result)
-		(dolist (my-list (funcall series-fn series 20))
+		(dolist (my-list (funcall series-fn series n))
 		  (format stream "~a,~a,~a~%"
 				  (first my-list)
 				  (second my-list)
 				  (fifth my-list))))
 	  (format stream "~%"))))
 
-(defun export-series ()
+(defun export-series (&optional (n 20))
   (dolist (series-pair series-list 'done)
 	(destructuring-bind (series series-name) series-pair
 	  (let ((filename (format nil "c:/mine/lisp/data/series ~a.csv" series-name)))
 		(format t "~%Writing ~a..." filename)
-		(write-series series filename)))))
+		(write-series series filename n)))))
 
 (defun do-team-series-calc (team s games-fn result-fn odds-fn)
   "Returns details of a TEAM with series S, using games returned from GAMES-FN
@@ -2271,18 +2278,17 @@
 
 	(dolist (game (funcall games-fn team))
 	  (let ((current (series-current s)))
-		(if (> signal-result 0)
-			(+= stake current))
+		(when (> signal-result 0)
+		  (+= stake current))
 		(cond ((funcall result-fn team game)
-			   (if (> signal-result 0)
-				   (progn
-					 (+= returns (* current (funcall odds-fn team game)))
-					 (series-update s "W")
-					 (format t "~%W : ~a v ~a Stake : ~a Return : ~a" (home-team game) (away-team game) stake returns))
-				   (format t "~%X : ~a v ~a ** SIGNAL **" (home-team game) (away-team game)))
+			   (cond ((> signal-result 0)
+					  (+= returns (* current (funcall odds-fn team game)))
+					  (series-update s "W")
+					  (format t "~%W : ~a v ~a Stake : ~a Return : ~a" (home-team game) (away-team game) stake returns))
+					 (t (format t "~%X : ~a v ~a ** SIGNAL **" (home-team game) (away-team game))))
 			   (incf signal-result)
-			   (if (> signal-result 3)
-				   (setf signal-result 0))			   )
+			   (when (> signal-result 3)
+				 (setf signal-result 0))			   )
 
 			  (t (series-update s "R")
 				 (if (> signal-result 0)
