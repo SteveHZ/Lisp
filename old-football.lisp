@@ -2327,3 +2327,20 @@ sub poisson {
 (defun top-last-six-away-under-percents (&optional (n 10))
   (do-top-percents #'last-six-away-under-percentage-return n))
 
+(defun say (games &key (odds nil))
+  (mapcar #'(lambda (game)
+			  (if odds 
+				  (say-game-with-odds game)
+				  (say-game game)))
+		  games)
+  t)
+  
+ (defmacro do-say (fn-name games-fn)
+  `(defun ,fn-name (team &key (odds nil))
+	 (say (funcall ,games-fn team) :odds odds)))
+
+(defun result-list1 (team game)
+"Amend list to change result from [H A D] to [W L D] for the given TEAM"
+  (append (subseq game 0 5)
+		  (cons (get-result team game)
+				(subseq game 6))))

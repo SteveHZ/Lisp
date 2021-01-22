@@ -17,14 +17,7 @@
 	("Queens Park" Overs)
 	("Clyde" Overs)
 	("Peterhead" Unders)
-	("Fulham" Unders)
-	;;	("Maidenhead" Wins)
-;;	("Stoke" Wins)
-;;	("Alloa" Wins)
-;;	("Wigan" Wins)
-;;	
-;;	
-	))
+	("Fulham" Unders)))
 
 (defun make-signal-funcs-ht ()
   (let ((ht (make-hash-table)))
@@ -35,17 +28,11 @@
 	(setf (gethash 'Unders ht) #'series-unders)
 	ht))
 
-(defun check-for-signal-result-old (team fn)
-  (let ((recent-game-list (last-six team 2)))
-	(and (funcall fn team (second recent-game-list))          ;; most recent game
-		 (not (funcall fn team (first recent-game-list))))))  ;; previous game
-
 (defun check-for-signal-result (team fn)
   (let ((game-list (reverse (last-n (home-aways team) 5))))
 	(cond ((funcall fn team (first game-list))
 		   (or (not (funcall fn team (second game-list))) ;; beginning of new streak
-			   (and (funcall fn team (second game-list))  ;; continuation of previous streak
-					(funcall fn team (third game-list))
+			   (and (funcall fn team (third game-list))   ;; continuation of previous streak
 					(funcall fn team (fourth game-list))
 					(funcall fn team (fifth game-list)))))
 		  (t nil))))
@@ -81,3 +68,10 @@
 (defun export-streaks (series &optional (n 50))
   (write-streaks series *streak-funcs* "c:/mine/lisp/data/streaks.csv" n)
   t)
+
+#|
+(defun check-for-signal-result-old (team fn)
+  (let ((recent-game-list (last-six team 2)))
+	(and (funcall fn team (second recent-game-list))          ;; most recent game
+		 (not (funcall fn team (first recent-game-list))))))  ;; previous game
+|#

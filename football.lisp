@@ -211,11 +211,11 @@
 (defun last-n-games (n team)
   (last-six team n))
 
-(defun get-results (result lst)
+(defun get-results (result list)
   (remove-if-not
    #'(lambda (game)
-       (equal (result game) result))
-   lst))
+	   (equal (result game) result))
+   list))
 
 (defun home-wins (team)
   (get-results "H" (homes team)))
@@ -331,8 +331,14 @@
   (home-away-win-result team game))
 (defun is-defeat (team game)
   (home-away-lost-result team game))
-(defun is-draw (team game)
-  (home-away-draw-result team game))
+;;(defun is-draw (team game)   (home-away-draw-result team game))
+(defun is-draw (game)
+  (equal (result game) "D"))
+
+(defun get-result (team game)
+  (cond ((is-draw game) "D")
+		((is-win team game) "W")
+		(t "L")))
 
 (defun is-over (game &optional (n 2.5))
   (< n (+ (home-score game)
@@ -463,11 +469,22 @@
 	  (format t "~%~{~a ~10t~a ~30t v  ~a ~54t~a-~a  ~a ~62t ¦  ~a ~73t~a ~79t~a ~85t ¦  ~a ~97t~a ~103t ¦~}" game)  ; uk
 	  (format t "~%~{~a ~10t~a ~30t v  ~a ~54t~a-~a  ~a ~62t ¦  ~a ~73t~a ~79t~a ~85t ¦~}" game)))                   ; summer 
 
-(defun say (games &key (odds nil))
+(defun win-lose-result (team game)
+  (if (is-win team game)
+	  "W" "L"))
+
+(defun result-list (team game)
+  "Amend list to transform result column from [H A D] to [W L D] for the given TEAM"
+  (cond ((is-draw game) game)
+		(t (append (subseq game 0 5)
+				   (cons (win-lose-result team game)
+						 (subseq game 6))))))
+
+(defun say (team games &key (odds nil))
   (mapcar #'(lambda (game)
 			  (if odds 
-				  (say-game-with-odds game)
-				  (say-game game)))
+				  (say-game-with-odds (result-list team game))
+				  (say-game (result-list team game))))
 		  games)
   t)
 
@@ -476,7 +493,7 @@
 
 (defmacro do-say (fn-name games-fn)
   `(defun ,fn-name (team &key (odds nil))
-	 (say (funcall ,games-fn team) :odds odds)))
+	 (say team (funcall ,games-fn team) :odds odds)))
 
 (do-say say-homes #'homes)
 (do-say say-aways #'aways)
@@ -518,7 +535,7 @@
 
 (defmacro do-sayn (fn-name games-fn)
   `(defun ,fn-name (team &key (odds nil) (ngames 6))
-	 (say (funcall ,games-fn team ngames) :odds odds)))
+	 (say team (funcall ,games-fn team ngames) :odds odds)))
 
 (do-sayn say-last-six #'last-six)
 (do-sayn say-last-six-homes #'last-six-homes)
