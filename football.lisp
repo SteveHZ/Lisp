@@ -38,7 +38,7 @@
 
 (proclaim '(inline csv-filename csv-league-name league-assoc))
 (defun csv-filename (league) (first league))
-(defun csv-league-name (league) (second league))
+(defun csv-league-name (league) (second)) league
 (defun league-assoc (key league) (second (assoc key league)))
 
 (defvar *uk-fixtures-file* "c:/mine/perl/football/data/fixtures.csv")
@@ -331,7 +331,6 @@
   (home-away-win-result team game))
 (defun is-defeat (team game)
   (home-away-lost-result team game))
-;;(defun is-draw (team game)   (home-away-draw-result team game))
 (defun is-draw (game)
   (equal (result game) "D"))
 
@@ -422,14 +421,14 @@
 (defun get-teams (csv-league &optional (teams *teams*))
   "Returns a list of teams in the given CSV-LEAGUE"
   (cond ((null teams) nil)
-        ((string-equal csv-league (first (first teams))) ; league id
+        ((string-equal csv-league (csv-filename (first teams))) ; league id
 		 (second (first teams))) ;; list of league teams
         (t (get-teams csv-league (rest teams)))))
 
 (defun count-all-league-results ()
   (mapcar #'(lambda (league)
-			  (let* ((league-name (string-upcase (csv-league-name league)))
-					 (games (get-league league-name))
+			  (let* ((league-name (csv-league-name league))
+					 (games (get-league (csv-filename league)))
 					 (num-games (length games))
 					 (home-wins (length (get-league-home-wins games)))
 					 (away-wins (length (get-league-away-wins games)))
@@ -446,13 +445,16 @@
 			  (length arg))
 		  args))
 
-;; NOT SURE ABOUT THIS ???
-(defun home-away-draw-record (team)
-  (destructuring-bind (home away draw)
-	  (lengths (list (homes team)
-					 (aways team)
-					 (draws team)))
-	(format t "~%Home Wins : ~a~%Away Wins : ~a~%Draws : ~a" home away draw)))
+(defun home-away-record (team)
+  (destructuring-bind (home-wins away-wins home-draws away-draws home-defeats away-defeats)
+	  (lengths (list (home-wins team)
+					 (away-wins team)
+					 (home-draws team)
+					 (away-draws team)
+					 (home-defeats team)
+					 (away-defeats team)))
+	(format t "~%Home Wins    : ~a~40tAway Wins    : ~a~%Home Draws   : ~a~40tAway Draws   : ~a~%Home Defeats : ~a~40tAway Defeats : ~a"
+			home-wins away-wins home-draws away-draws home-defeats away-defeats)))
 
 ;; ***************************************************************
 
@@ -2301,16 +2303,16 @@
 			   (cond ((> signal-result 0)
 					  (+= returns (* current (funcall odds-fn team game)))
 					  (series-update s "W")
-					  (format t "~%W : ~a v ~a Stake : ~a Return : ~a" (home-team game) (away-team game) stake returns))
-					 (t (format t "~%X : ~a v ~a ** SIGNAL **" (home-team game) (away-team game))))
+					  (format t "~%W W : ~a v ~a Stake : ~a Return : ~a" (home-team game) (away-team game) stake returns))
+					 (t (format t "~%X W : ~a v ~a ** SIGNAL **" (home-team game) (away-team game))))
 			   (incf signal-result)
 			   (when (> signal-result 3)
 				 (setf signal-result 0))			   )
 
 			  (t (series-update s "R")
 				 (if (> signal-result 0)
-					 (format t "~%L : ~a v ~a Stake : ~a Return : ~a" (home-team game) (away-team game) stake returns)
-					 (format t "~%X : ~a v ~a" (home-team game) (away-team game)))
+					 (format t "~%L L : ~a v ~a Stake : ~a Return : ~a" (home-team game) (away-team game) stake returns)
+					 (format t "~%X   : ~a v ~a" (home-team game) (away-team game)))
 				 
 				 (setf signal-result 0)))))))
 
@@ -2324,6 +2326,96 @@
   (do-team-streak series team #'home-aways #'series-overs #'series-over-odds))
 (defun do-team-streak-unders-calc (team series)
   (do-team-streak series team #'home-aways #'series-unders #'series-under-odds))
+
+;;Workaround
+(defun streak-is-draw (team game)
+  (declare (ignore team))
+  (is-draw game))
+
+(defun make-signal-funcs-ht ()
+  (let ((ht (make-hash-table)))
+	(setf (gethash 'Wins ht) #'is-win)
+	(setf (gethash 'Draws ht) #'streak-is-draw)
+	(setf (gethash 'Defeats ht) #'is-defeat)
+	(setf (gethash 'Overs ht) #'series-overs)
+	(setf (gethash 'Unders ht) #'series-unders)
+	ht))
+
+(defun check-for-signal-result (team fn)
+  (let ((game-list (reverse (last-n (home-aways team) 5))))
+	(cond ((funcall fn team (first game-list))
+		   (or (not (funcall fn team (second game-list))) ;; beginning of new streak
+			   (and (funcall fn team (third game-list))   ;; continuation of previous streak
+					(funcall fn team (fourth game-list))
+					(funcall fn team (fifth game-list)))))
+		  (t nil))))
+
+(defun get-signal-results ()
+  (let ((signal-funcs-ht (make-signal-funcs-ht))
+		(signal-list nil))
+	(mapcar #'(lambda (streak-pair)
+				(destructuring-bind (team result) streak-pair
+				  (when (check-for-signal-result team (gethash result signal-funcs-ht))
+					(push team signal-list))))
+			*streak-teams*)
+	signal-list))
+
+(defvar *streak-funcs*
+  `(("Wins" ,#'do-streak-wins-calc)
+	("Draws" ,#'do-streak-draws-calc)
+	("Defeats" ,#'do-streak-defeats-calc)
+	("Overs" ,#'do-streak-overs-calc)
+	("Unders" ,#'do-streak-unders-calc)))
+
+(defun write-streaks (series funcs filename n)
+  (with-open-file (stream filename
+						  :direction :output
+						  :if-exists :supersede)
+	(dolist (series-pair funcs)
+	  (destructuring-bind (streak-result streak-fn) series-pair
+		(format stream "~a~%" streak-result)
+		(dolist (my-list (funcall streak-fn series n))
+		  (format stream "~{~a~^,~}~%" my-list)))
+	  (format stream "~%"))))
+
+(defun export-streaks (series &optional (n 50))
+  (write-streaks series *streak-funcs* "c:/mine/lisp/data/streaks.csv" n)
+  t)
+
+(defun load-my-streak-teams ()
+  (with-open-file (in "c:/mine/lisp/data/my-streak-teams.dat")
+	(with-standard-io-syntax
+	  (setf *streak-teams* (read in)))))
+
+(defun save-my-streak-teams ()
+  (with-open-file (out "c:/mine/lisp/data/my-streak-teams.dat"
+					   :direction :output
+					   :if-exists :supersede)
+	(with-standard-io-syntax
+	  (print *streak-teams* out))))
+
+(defun my-streak-teams ()
+  *my-streak-teams*)
+
+(defun my-streak-teams-add (&rest team-list)
+  (dolist (team team-list)
+	(push team *streak-teams*))
+  (save-my-streak-teams))
+
+(defun my-streak-teams-remove (&rest team-list)
+  (dolist (team team-list)
+	(setf *streak-teams*
+		  (remove-if #'(lambda (tm)
+						 (string-equal (first tm) team))
+					 *streak-teams*)))
+  (save-my-streak-teams))
+
+(defun my-streak-teams-remove-all ()
+  (setf *streak-teams* nil))
+
+(defun my-streak-teams-update-all (&rest team-list)
+  (my-teams-remove-all)
+  (apply #'my-streak-teams-add team-list))
 
 (defmacro update-if-gt (counter max-seen)
   `(when (> ,counter ,max-seen)
