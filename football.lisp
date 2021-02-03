@@ -994,7 +994,7 @@
 ;; Find stats within *ht-stats* hash for TEAM in LEAGUE
 ;;
 
-;; Enables writing (get-home-for "Stoke" "e1)
+;; Enables writing (get-home-for "Stoke" "e1")
 ;; rather than (stats-home-for (gethash "Stoke" (gethash "e1" *ht-stats*)))
 
 (defmacro get-value (property team hash)
@@ -1996,10 +1996,13 @@
 (defun series-print (series)
   (funcall series "P"))
 
-;; Workarounds for do-series
+;; Workarounds for do-series and do-streak
 (defun series-odds (fn team game)
   (declare (ignore team))
   (funcall fn game))
+(defun series-is-draw (team game)
+  (declare (ignore team))
+  (is-draw game))
 
 (defun series-draw-odds (team game)
   (series-odds #'draw-odds team game))
@@ -2327,27 +2330,22 @@
 (defun do-team-streak-unders-calc (team series)
   (do-team-streak series team #'home-aways #'series-unders #'series-under-odds))
 
-;;Workaround
-(defun streak-is-draw (team game)
-  (declare (ignore team))
-  (is-draw game))
-
 (defun make-signal-funcs-ht ()
   (let ((ht (make-hash-table)))
 	(setf (gethash 'Wins ht) #'is-win)
-	(setf (gethash 'Draws ht) #'streak-is-draw)
+	(setf (gethash 'Draws ht) #'series-is-draw)
 	(setf (gethash 'Defeats ht) #'is-defeat)
 	(setf (gethash 'Overs ht) #'series-overs)
 	(setf (gethash 'Unders ht) #'series-unders)
 	ht))
 
-(defun check-for-signal-result (team fn)
+(defun check-for-signal-result (team result-fn)
   (let ((game-list (reverse (last-n (home-aways team) 5))))
-	(cond ((funcall fn team (first game-list))
-		   (or (not (funcall fn team (second game-list))) ;; beginning of new streak
-			   (and (funcall fn team (third game-list))   ;; continuation of previous streak
-					(funcall fn team (fourth game-list))
-					(funcall fn team (fifth game-list)))))
+	(cond ((funcall result-fn team (first game-list))
+		   (or (not (funcall result-fn team (second game-list))) ;; beginning of new streak
+			   (and (funcall result-fn team (third game-list))   ;; continuation of previous streak
+					(funcall result-fn team (fourth game-list))
+					(funcall result-fn team (fifth game-list)))))
 		  (t nil))))
 
 (defun get-signal-results ()
@@ -2395,7 +2393,7 @@
 	  (print *streak-teams* out))))
 
 (defun my-streak-teams ()
-  *my-streak-teams*)
+  *streak-teams*)
 
 (defun my-streak-teams-add (&rest team-list)
   (dolist (team team-list)
@@ -2405,8 +2403,8 @@
 (defun my-streak-teams-remove (&rest team-list)
   (dolist (team team-list)
 	(setf *streak-teams*
-		  (remove-if #'(lambda (tm)
-						 (string-equal (first tm) team))
+		  (remove-if #'(lambda (team-pair)
+						 (string-equal (first team-pair) team))
 					 *streak-teams*)))
   (save-my-streak-teams))
 
