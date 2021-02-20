@@ -38,7 +38,7 @@
 
 (proclaim '(inline csv-filename csv-league-name league-assoc))
 (defun csv-filename (league) (first league))
-(defun csv-league-name (league) (second)) league
+(defun csv-league-name (league) (second league))
 (defun league-assoc (key league) (second (assoc key league)))
 
 (defvar *uk-fixtures-file* "c:/mine/perl/football/data/fixtures.csv")
@@ -61,6 +61,7 @@
 (defvar *ht-league-stats* (make-hash-table :test #'equal))
 (defvar *expects-db* (make-hash-table :test #'equal))
 (defvar *my-teams*)
+(defparameter *streak-teams* '())
 
 (defun clear-database ()
   (setf *ht-stats* (make-hash-table :test #'equal))
@@ -497,6 +498,14 @@
   `(defun ,fn-name (team &key (odds nil))
 	 (say team (funcall ,games-fn team) :odds odds)))
 
+#|
+(defun do-say2 (team games-fn &key (odds nil))
+  (say team (funcall games-fn team :odds odds)))
+
+(defun say-homes2 (team)
+  (do-say2 team #'homes))
+|#
+
 (do-say say-homes #'homes)
 (do-say say-aways #'aways)
 (do-say say-home-aways #'home-aways)
@@ -504,6 +513,14 @@
 (do-say say-wins #'wins)
 (do-say say-defeats #'defeats)
 (do-say say-draws #'draws)
+
+(do-say say-home-wins #'home-wins)
+(do-say say-home-defeats #'home-defeats)
+(do-say say-home-draws #'home-draws)
+
+(do-say say-away-wins #'away-wins)
+(do-say say-away-defeats #'away-defeats)
+(do-say say-away-draws #'away-draws)
 
 (do-say say-wins-in-last-six #'wins-in-last-six)
 (do-say say-defeats-in-last-six #'defeats-in-last-six)
@@ -994,7 +1011,7 @@
 ;; Find stats within *ht-stats* hash for TEAM in LEAGUE
 ;;
 
-;; Enables writing (get-home-for "Stoke" "e1")
+;; Enables writing (get-home-for "Stoke" "e1)
 ;; rather than (stats-home-for (gethash "Stoke" (gethash "e1" *ht-stats*)))
 
 (defmacro get-value (property team hash)
@@ -1983,6 +2000,7 @@
 (defparameter s5 (make-circular-series '(1 2 2 3 3 5 5) '(3 4 5)))
 (defparameter s6 (make-short-series '(2 3 4 5 6 8)))
 
+(defparameter st3 (make-streak-series '(3 2 1)))
 (defparameter st4 (make-streak-series '(4 2 1)))
 (defparameter st5 (make-streak-series '(5 3 1)))
 (defparameter st10 (make-streak-series '(10 6 2)))
@@ -2307,7 +2325,7 @@
 					  (+= returns (* current (funcall odds-fn team game)))
 					  (series-update s "W")
 					  (format t "~%W W : ~a v ~a Stake : ~a Return : ~a" (home-team game) (away-team game) stake returns))
-					 (t (format t "~%X W : ~a v ~a ** SIGNAL **" (home-team game) (away-team game))))
+					 (t (format t "~%X * : ~a v ~a" (home-team game) (away-team game))))
 			   (incf signal-result)
 			   (when (> signal-result 3)
 				 (setf signal-result 0))			   )
@@ -2330,6 +2348,18 @@
 (defun do-team-streak-unders-calc (team series)
   (do-team-streak series team #'home-aways #'series-unders #'series-under-odds))
 
+(defun load-my-streak-teams ()
+  (with-open-file (in "c:/mine/lisp/data/my-streak-teams.dat")
+	(with-standard-io-syntax
+	  (setf *streak-teams* (read in)))))
+
+(defun save-my-streak-teams ()
+  (with-open-file (out "c:/mine/lisp/data/my-streak-teams.dat"
+					   :direction :output
+					   :if-exists :supersede)
+	(with-standard-io-syntax
+	  (print *streak-teams* out))))
+
 (defun make-signal-funcs-ht ()
   (let ((ht (make-hash-table)))
 	(setf (gethash 'Wins ht) #'is-win)
@@ -2348,15 +2378,23 @@
 					(funcall result-fn team (fifth game-list)))))
 		  (t nil))))
 
+;; Write func to follow on from this to show fixtures for each team.
+;; maybe even a following list of teams not playing;
+;; copy signal-list then use mapcar teams (remove team signal-list-copy :test #'string-equal)
+
 (defun get-signal-results ()
   (let ((signal-funcs-ht (make-signal-funcs-ht))
 		(signal-list nil))
+	(load-my-streak-teams)
 	(mapcar #'(lambda (streak-pair)
 				(destructuring-bind (team result) streak-pair
 				  (when (check-for-signal-result team (gethash result signal-funcs-ht))
-					(push team signal-list))))
+					(push streak-pair signal-list))))
 			*streak-teams*)
 	signal-list))
+
+(defun say-signal-resuts ()
+  (format t "~{~{~%~a ~18t~a~}~}" (get-signal-results)))
 
 (defvar *streak-funcs*
   `(("Wins" ,#'do-streak-wins-calc)
@@ -2380,18 +2418,6 @@
   (write-streaks series *streak-funcs* "c:/mine/lisp/data/streaks.csv" n)
   t)
 
-(defun load-my-streak-teams ()
-  (with-open-file (in "c:/mine/lisp/data/my-streak-teams.dat")
-	(with-standard-io-syntax
-	  (setf *streak-teams* (read in)))))
-
-(defun save-my-streak-teams ()
-  (with-open-file (out "c:/mine/lisp/data/my-streak-teams.dat"
-					   :direction :output
-					   :if-exists :supersede)
-	(with-standard-io-syntax
-	  (print *streak-teams* out))))
-
 (defun my-streak-teams ()
   *streak-teams*)
 
@@ -2414,6 +2440,10 @@
 (defun my-streak-teams-update-all (&rest team-list)
   (my-teams-remove-all)
   (apply #'my-streak-teams-add team-list))
+
+;; *******************************************
+;; Max games since RESULT
+;;
 
 (defmacro update-if-gt (counter max-seen)
   `(when (> ,counter ,max-seen)
@@ -2616,7 +2646,9 @@
 	  (format t "~%~a ~5t: Games : ~3d Wins : ~3d Percent : ~,2f%"
 			  (string-upcase filename) games wins (calc-percent games wins)))))
 
+;; *******************************************
 ;; Both teams to score
+;;
 
 (defun is-btts (game)
   (and (> (home-score game) 0)
@@ -2655,4 +2687,41 @@
 (defun sort-btts (leagues &optional (n 10))
   (first-n n (sort (get-all-btts leagues)
 				   #'> :key #'second)))
+
+;; *******************************************
+;; Handicaps
+;;
+
+(defun calc-team-spread (team games hcap)
+  (let ((my-list nil)
+		(handicap (* -1 (abs hcap)))) ;; ensure negative
+	(mapcar #'(lambda (game)
+				(when (or (and (equal team (home-team game))
+							   (> (+ (home-score game) handicap)
+								  (away-score game)))
+						  (and (equal team (away-team game))
+							   (> (+ (away-score game) handicap)
+								  (home-score game))))
+				  (push game my-list)))
+			games)
+	my-list))
+
+(defun show-spread (team handicap)
+  (reverse
+   (calc-team-spread team (home-aways team) handicap)))
+
+(defun calc-spread (team handicap)
+  (let ((games (home-aways team)))
+	(values (length (calc-team-spread team games handicap))
+			(length games))))
+
+(defun calc-spread-list (&key ((:h handicap) 2.5) (n 20))
+  (let ((my-list nil))
+	(with-all-teams (team *leagues*)
+	  (multiple-value-bind (wins games)
+		  (calc-spread team handicap)
+		(push (list team wins games (calc-percent games wins))
+			  my-list)))
+	(format t "~{~{~%~a ~18t: ~2d  ~2d  ~5,2f %~}~}"
+			(first-n n (sort my-list #'> :key #'fourth)))))
 

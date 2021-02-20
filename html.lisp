@@ -14,7 +14,7 @@
   `(progn
 	 (format t "~&<~(~a~)>~%" ',tag)
 	 ,@body
-	 (format t "~&<~(~a~)>~%" ',tag)))
+	 (format t "~&</~(~a~)>~%" ',tag)))
 
 (defun brs (&optional (n 1))
   (fresh-line)

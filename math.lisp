@@ -1,4 +1,5 @@
 
+
 (defpackage :zappa-math
   (:use :common-lisp
         :zappa-macros
@@ -245,6 +246,7 @@
   (- (reg-saver-return amount rate months)
      (* amount months)))
 
+;; ?? should use (push (list ...)) rather than backquotes
 (defun reg-saver-make-list (amount rate &optional (months 12))
   (let ((invested 0)
         (monthly-interest 0)
