@@ -476,18 +476,38 @@
   (if (is-win team game)
 	  "W" "L"))
 
-(defun result-list (team game)
-  "Amend list to transform result column from [H A D] to [W L D] for the given TEAM"
-  (cond ((is-draw game) game)
-		(t (append (subseq game 0 5)
-				   (cons (win-lose-result team game)
-						 (subseq game 6))))))
+(defun over-under-result (team game ou-func)
+  (declare (ignore team))
+  (if (funcall ou-func game)
+	  "W" "L"))
 
-(defun say (team games &key (odds nil))
+(defun over-result (team game)
+  (over-under-result team game #'is-over))
+
+(defun under-result (team game)
+  (over-under-result team game #'is-under))
+
+(defun splice-result-into-list (team game result-fn)
+  (append (subseq game 0 5)
+		  (cons (funcall result-fn team game)
+				(subseq game 6))))
+
+(defun over-result-list (team game)
+  (splice-result-into-list team game #'over-result)) ;; just call is-win or is-under ?? no
+(defun under-result-list (team game)
+  (splice-result-into-list team game #'under-result))
+
+(defun result-list (team game)
+  "Amend list to transform result column from [H A D] to [W L D] or [W L] for the given TEAM and possible result"
+  (if (is-draw game)
+	  game
+	  (splice-result-into-list team game #'win-lose-result)))
+
+(defun say (team games &key (odds nil) (result-fn #'result-list))
   (mapcar #'(lambda (game)
-			  (if odds 
-				  (say-game-with-odds (result-list team game))
-				  (say-game (result-list team game))))
+			  (if odds
+				  (say-game-with-odds (funcall result-fn team game))
+				  (say-game (funcall result-fn team game))))
 		  games)
   t)
 
@@ -497,14 +517,6 @@
 (defmacro do-say (fn-name games-fn)
   `(defun ,fn-name (team &key (odds nil))
 	 (say team (funcall ,games-fn team) :odds odds)))
-
-#|
-(defun do-say2 (team games-fn &key (odds nil))
-  (say team (funcall games-fn team :odds odds)))
-
-(defun say-homes2 (team)
-  (do-say2 team #'homes))
-|#
 
 (do-say say-homes #'homes)
 (do-say say-aways #'aways)
@@ -534,22 +546,6 @@
 (do-say say-defeats-in-last-six-aways #'defeats-in-last-six-aways)
 (do-say say-draws-in-last-six-aways #'draws-in-last-six-aways)
 
-(do-say say-home-overs #'home-overs)
-(do-say say-away-overs #'away-overs)
-(do-say say-home-away-overs #'home-away-overs)
-
-(do-say say-home-unders #'home-unders)
-(do-say say-away-unders #'away-unders)
-(do-say say-home-away-unders #'home-away-unders)
-
-(do-say say-last-six-overs #'last-six-overs)
-(do-say say-last-six-home-overs #'last-six-home-overs)
-(do-say say-last-six-away-overs #'last-six-away-overs)
-
-(do-say say-last-six-unders #'last-six-unders)
-(do-say say-last-six-home-unders #'last-six-home-unders)
-(do-say say-last-six-away-unders #'last-six-away-unders)
-
 ;; As with defsay but with optional number of recent games
 
 (defmacro do-sayn (fn-name games-fn)
@@ -563,6 +559,20 @@
 (do-sayn say-last-six-wins #'last-six-wins)
 (do-sayn say-last-six-defeats #'last-six-defeats)
 (do-sayn say-last-six-draws #'last-six-draws)
+
+;; As with defsay but showing over/under results
+
+(defmacro do-say-ou (fn-name games-fn result-fn)
+  `(defun ,fn-name (team &key (odds nil) (result-fn ,result-fn))
+	 (say team (funcall ,games-fn team) :odds odds :result-fn result-fn)))
+
+(do-say-ou say-home-overs #'homes #'over-result-list)
+(do-say-ou say-away-overs #'aways #'over-result-list)
+(do-say-ou say-home-away-overs #'home-aways #'over-result-list)
+
+(do-say-ou say-home-unders #'homes #'under-result-list)
+(do-say-ou say-away-unders #'aways #'under-result-list)
+(do-say-ou say-home-away-unders #'home-aways #'under-result-list)
 
 ;; **************************************************************
 ;;
@@ -2000,6 +2010,7 @@
 (defparameter s5 (make-circular-series '(1 2 2 3 3 5 5) '(3 4 5)))
 (defparameter s6 (make-short-series '(2 3 4 5 6 8)))
 
+(defparameter st1 (make-streak-series '(1 1 1)))
 (defparameter st3 (make-streak-series '(3 2 1)))
 (defparameter st4 (make-streak-series '(4 2 1)))
 (defparameter st5 (make-streak-series '(5 3 1)))
@@ -2393,7 +2404,7 @@
 			*streak-teams*)
 	signal-list))
 
-(defun say-signal-resuts ()
+(defun say-signal-results ()
   (format t "~{~{~%~a ~18t~a~}~}" (get-signal-results)))
 
 (defvar *streak-funcs*

@@ -2344,3 +2344,36 @@ sub poisson {
   (append (subseq game 0 5)
 		  (cons (get-result team game)
 				(subseq game 6))))
+		
+(defun result-list (team game)
+  "Amend list to transform result column from [H A D] to [W L D] for the given TEAM"
+  (cond ((is-draw game) game)
+		(t (append (subseq game 0 5)
+				   (cons (win-lose-result team game)
+						 (subseq game 6))))))
+
+(defun say (team games &key (odds nil))
+  (mapcar #'(lambda (game)
+			  (if odds 
+				  (say-game-with-odds (result-list team game))
+				  (say-game (result-list team game))))
+		  games)
+  t)
+
+(do-say say-home-overs #'home-overs)
+(do-say say-away-overs #'away-overs)
+(do-say say-home-away-overs #'home-away-overs)
+
+(do-say say-home-unders #'home-unders)
+(do-say say-away-unders #'away-unders)
+(do-say say-home-away-unders #'home-away-unders)
+
+(do-say say-last-six-overs #'last-six-overs)
+(do-say say-last-six-home-overs #'last-six-home-overs)
+(do-say say-last-six-away-overs #'last-six-away-overs)
+
+(do-say say-last-six-unders #'last-six-unders)
+(do-say say-last-six-home-unders #'last-six-home-unders)
+(do-say say-last-six-away-unders #'last-six-away-unders)
+
+

@@ -103,7 +103,7 @@
   (splice-result-into-list team game #'under-result))
 
 (defun result-list2 (team game)
-  "Amend list to transform result column from [H A D] to [W L D] for the given TEAM"
+  "Amend list to transform result column from [H A D] to [W L D] or [W L] for the given TEAM and possible result"
   (if (is-draw game)
 	  game
 	  (splice-result-into-list team game #'win-lose-result)))
@@ -149,3 +149,19 @@
 (do-say-ou say-away-unders2 #'aways #'under-result-list)
 (do-say-ou say-home-away-unders2 #'home-aways #'under-result-list)
 
+;;==================================================================================
+
+(defmacro nand (&body body)
+  `(not (and ,@body)))
+
+;; needs adapting to use (funcall result-fn...)
+(defun signal-test (my-list)
+  (and (first my-list)
+	   (or (nand
+			 (second my-list) ; on a streak - if all three are true we have a signal result and three wins, so result is nil otherwise true
+			 (third my-list)
+			 (fourth my-list))
+		   (and (second my-list) ; are we on a continuation of previous streak ?
+				(third my-list)
+				(fourth my-list)
+				(fifth my-list)))))
