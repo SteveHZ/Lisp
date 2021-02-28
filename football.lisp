@@ -493,7 +493,7 @@
 				(subseq game 6))))
 
 (defun over-result-list (team game)
-  (splice-result-into-list team game #'over-result)) ;; just call is-win or is-under ?? no
+  (splice-result-into-list team game #'over-result))
 (defun under-result-list (team game)
   (splice-result-into-list team game #'under-result))
 
