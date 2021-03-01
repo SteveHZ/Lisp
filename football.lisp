@@ -2452,6 +2452,18 @@
   (my-teams-remove-all)
   (apply #'my-streak-teams-add team-list))
 
+(defun get-streak-games ()
+  (let ((my-list nil)
+		(my-teams (my-streak-teams)))
+	(dolist (game *fixtures*)
+	  (mapcar #'(lambda (team)
+				  (let ((team-name (first team)))
+					(when (or (equal team-name (fhome game))
+							  (equal team-name (faway game)))
+					  (push game my-list))))
+			  my-teams))
+	my-list))
+
 ;; *******************************************
 ;; Max games since RESULT
 ;;
