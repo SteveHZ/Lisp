@@ -98,7 +98,7 @@
 				(subseq game 6))))
 
 (defun over-result-list (team game)
-  (splice-result-into-list team game #'over-result)) ;; just call is-win or is-under ?? no
+  (splice-result-into-list team game #'over-result)) 
 (defun under-result-list (team game)
   (splice-result-into-list team game #'under-result))
 
@@ -165,3 +165,34 @@
 				(third my-list)
 				(fourth my-list)
 				(fifth my-list)))))
+
+
+'' this works
+(defun say? (team games &key (odds nil) (result-fn #' result-list))
+  (let ((odds-fn (if odds
+					 #'say-game-with-odds
+					 #'say-game)))
+	(mapcar #'(lambda (game)
+				(funcall odds-fn (funcall result-fn team game)))
+			games)))
+
+#|
+;; Ternary operator in lisp eg my $x = ($y > 10) ? y * 2 : y * 10
+
+(defmacro let? (var test a b &body body)
+  `(let ((,var
+		   (if ,test ,a ,b)))
+	 ,@body))
+|#
+
+(defun say (team games &key (odds nil) (result-fn #' result-list))
+  (let? odds-fn
+	  (equal odds nil)
+	  #'say-game
+	  #'say-game-with-odds
+	(mapcar #'(lambda (game)
+				(funcall odds-fn (funcall result-fn team game)))
+			games))
+  t)
+
+(say?? "Stoke" (homes "Stoke"))

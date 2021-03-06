@@ -129,3 +129,10 @@
  "Return 0 if argument X is zero to avoid division-by-zero errors, otherwise continue"
   `(if (= ,x 0) 0
 	   ,@body))
+
+;; Ternary operator in lisp eg my $x = ($y > 10) ? y * 2 : y * 10
+
+(defmacro let? (var test expr1 expr2 &body body)
+  `(let ((,var
+		   (if ,test ,expr1 ,expr2)))
+	 ,@body))

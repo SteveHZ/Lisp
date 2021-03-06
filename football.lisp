@@ -503,12 +503,13 @@
 	  game
 	  (splice-result-into-list team game #'win-lose-result)))
 
-(defun say (team games &key (odds nil) (result-fn #'result-list))
-  (mapcar #'(lambda (game)
-			  (if odds
-				  (say-game-with-odds (funcall result-fn team game))
-				  (say-game (funcall result-fn team game))))
-		  games)
+(defun say (team games &key (odds nil) (result-fn #' result-list))
+  (let? odds-fn (equal odds nil)
+	  #'say-game
+	  #'say-game-with-odds
+	(mapcar #'(lambda (game)
+				(funcall odds-fn (funcall result-fn team game)))
+			games))
   t)
 
 ;; Macro used to create a function named FN-NAME
@@ -1005,7 +1006,7 @@
 						  :if-exists :supersede)
 	(dolist (returns-pair return-fns)
 	  (destructuring-bind (result return-fn) returns-pair
-		(format t "Writing ~a...~%" result)
+		(format t "~%Writing Returns - ~a..." result)
 		(format stream "~a~%" result)
 		(dolist (my-list (do-top%-list return-fn n))
 		  (format stream "~{~a~^,~}~%" my-list)))
@@ -2420,6 +2421,7 @@
 						  :if-exists :supersede)
 	(dolist (series-pair funcs)
 	  (destructuring-bind (streak-result streak-fn) series-pair
+		(format t "~%Writing Streaks - ~a" streak-result)
 		(format stream "~a~%" streak-result)
 		(dolist (my-list (funcall streak-fn series n))
 		  (format stream "~{~a~^,~}~%" my-list)))
@@ -2463,6 +2465,12 @@
 					  (push game my-list))))
 			  my-teams))
 	my-list))
+
+(defun start++ ()
+  (update-csv-files)
+  (start+)
+  (export-returns)
+  (export-streaks st5))
 
 ;; *******************************************
 ;; Max games since RESULT

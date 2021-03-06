@@ -166,32 +166,6 @@
 (defun xget-league (team)
   (setf *db* (import-csv (format nil "c:/mine/lisp/data/~a.csv" (find-league team)))))
 
-
-sub calc {
-	my ($self, $home_expect, $away_expect) = @_;
-	state $p = Football::Game_Predictions::MyPoisson->new ();
-	state $p_func = $p->get_calc_func ($self->{weighted});
-	my %cache_p;
-
-	for my $home_score (0..$self->{max}) {
-		my $home_p = $p_func->($p, $home_expect, $home_score);
-		for my $away_score (0..$self->{max}) {
-			unless (exists $cache_p{$away_score}) {
-				$cache_p{$away_score} = $p_func->($p, $away_expect, $away_score);
-			}
-			$self->{stats}[$home_score][$away_score] = $p->poisson_result ($home_p, $cache_p{$away_score});
-		}
-	}
-	return $self->{stats};
-}
-
-sub poisson {
-	my ($self, $expect, $score) = @_;
-	return	power ($expect, $score) *
-	 		power ($self->{euler}, $expect * -1) /
-			factorial ($score);
-}
-
 (defun poisson (expect, score)
   (/ (* (expt expect score)
         (expt e (- expect 1)))
