@@ -1,4 +1,3 @@
-
 ;; football.lisp May 2020
 
 (defpackage :football
@@ -74,8 +73,7 @@
   (home-ag 0)  (av-home-ag 0)  (expect-home-ag 0)
   (away-for 0) (av-away-for 0) (expect-away-for 0)
   (away-ag 0)  (av-away-ag 0)  (expect-away-ag 0)
-  (home-games 0)
-  (away-games 0))
+  (home-games 0) (away-games 0))
 
 (defstruct (league-stats (:print-function print-league-stats))
   "Holds the total games and home/away goals for each league"
@@ -503,7 +501,7 @@
 	  game
 	  (splice-result-into-list team game #'win-lose-result)))
 
-(defun say (team games &key (odds nil) (result-fn #' result-list))
+(defun say (team games &key (odds nil) (result-fn #'result-list))
   (let? odds-fn (equal odds nil)
 	  #'say-game
 	  #'say-game-with-odds
@@ -547,6 +545,14 @@
 (do-say say-defeats-in-last-six-aways #'defeats-in-last-six-aways)
 (do-say say-draws-in-last-six-aways #'draws-in-last-six-aways)
 
+(do-say say-home-over-wins #'home-overs)
+(do-say say-away-over-wins #'away-overs)
+(do-say say-home-away-over-wins #'home-away-overs)
+
+(do-say say-home-under-wins #'home-unders)
+(do-say say-away-under-wins #'away-unders)
+(do-say say-home-away-under-wins #'home-away-unders)
+
 ;; As with defsay but with optional number of recent games
 
 (defmacro do-sayn (fn-name games-fn)
@@ -561,7 +567,7 @@
 (do-sayn say-last-six-defeats #'last-six-defeats)
 (do-sayn say-last-six-draws #'last-six-draws)
 
-;; As with defsay but showing over/under results
+;; As with defsay but showing all games with over/under results
 
 (defmacro do-say-ou (fn-name games-fn result-fn)
   `(defun ,fn-name (team &key (odds nil) (result-fn ,result-fn))
@@ -990,15 +996,44 @@
 
 (defparameter returns-funcs
   `(("Wins" ,#'win-percentage-return)
+	("Home Wins" ,#'home-win-percentage-return)
+	("Away Wins" ,#'away-win-percentage-return)
+
 	("Draws" ,#'draw-percentage-return)
+	("Home Draws" ,#'home-draw-percentage-return)
+	("Away Draws" ,#'away-draw-percentage-return)
+
 	("Defeats" ,#'loss-percentage-return)
+	("Home Defeats" ,#'home-loss-percentage-return)
+	("Away Defeats" ,#'away-loss-percentage-return)
+
 	("Overs" ,#'over-percentage-return)
+	("Home Overs" ,#'home-over-percentage-return)
+	("Away Overs" ,#'away-over-percentage-return)	
+
 	("Unders" ,#'under-percentage-return)
+	("Home Unders" ,#'home-under-percentage-return)
+	("Away Unders" ,#'away-under-percentage-return)
+
 	("Last Six Wins" ,#'last-six-win-percentage-return)
+	("Last Six Home Wins" ,#'last-six-home-win-percentage-return)
+	("Last Six Away Wins" ,#'last-six-away-win-percentage-return)
+
 	("Last Six Draws" ,#'last-six-draw-percentage-return)
+	("Last Six Home Draws" ,#'last-six-home-draw-percentage-return)
+	("Last Six Away Draws" ,#'last-six-away-draw-percentage-return)
+
 	("Last Six Defeats" ,#'last-six-loss-percentage-return)
+	("Last Six Home Defeats" ,#'last-six-home-loss-percentage-return)
+	("Last Six Away Defeats" ,#'last-six-away-loss-percentage-return)
+
 	("Last Six Overs" ,#'last-six-over-percentage-return)
-	("Last Six Unders" ,#'last-six-under-percentage-return)))
+	("Last Six Home Overs" ,#'last-six-home-over-percentage-return)
+	("Last Six Away Overs" ,#'last-six-away-over-percentage-return)
+
+	("Last Six Unders" ,#'last-six-under-percentage-return)
+	("Last Six Home Unders" ,#'last-six-home-under-percentage-return)
+	("Last Six Away Unders" ,#'last-six-away-under-percentage-return)))
 
 (defun write-returns (filename return-fns n)
   (with-open-file (stream filename
@@ -1485,6 +1520,7 @@
   (do-expects)
   (setf *sorted* (safe-sort *expects*
                    #'> :key #'game-goal-diff)))
+
 (defun do-odds ()
   "Calculates odds for each game from goal expectancy values"
   (dolist (game *expects*)
@@ -2466,11 +2502,18 @@
 			  my-teams))
 	my-list))
 
+(defun do-streaks ()
+  (format t "~%~%Signal results :~%")
+  (say-signal-results)
+  (format t "~%~%Streak games :~%")
+  (get-streak-games))
+
 (defun start++ ()
   (update-csv-files)
   (start+)
   (export-returns)
-  (export-streaks st5))
+  (export-streaks st5)
+  (do-streaks))
 
 ;; *******************************************
 ;; Max games since RESULT
@@ -2751,8 +2794,10 @@
 	(with-all-teams (team *leagues*)
 	  (multiple-value-bind (wins games)
 		  (calc-spread team handicap)
-		(push (list team wins games (calc-percent games wins))
-			  my-list)))
+		(when (> wins 0)
+		  (push (list team wins games (calc-percent games wins))
+				my-list))))
 	(format t "~{~{~%~a ~18t: ~2d  ~2d  ~5,2f %~}~}"
 			(first-n n (sort my-list #'> :key #'fourth)))))
+
 

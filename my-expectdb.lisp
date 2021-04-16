@@ -11,7 +11,7 @@
 		   :initform 0)
    (away   :accessor away-win
 		   :initform 0)))
-   
+
 (defmethod incr-stats ((self my-expectdb) result)
   (cond ((equal result "H") (incf (home-win self)))
 		((equal result "D") (incf (draw self)))
