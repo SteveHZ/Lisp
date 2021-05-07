@@ -31,8 +31,8 @@
 
 (defparameter *summer-leagues*
   '(("swe" "Swedish League")
-	("nor" "Norwegian League")
-	("fin" "Finnish League")
+;	("nor" "Norwegian League")
+;	("fin" "Finnish League")
 	("roi" "Irish League")))
 
 (proclaim '(inline csv-filename csv-league-name league-assoc))
@@ -45,16 +45,16 @@
 (defvar *uk-teams-file* "c:/mine/lisp/data/uk-teams.dat")
 (defvar *summer-teams-file* "c:/mine/lisp/data/summer-teams.dat")
 
-(defparameter *leagues* *uk-leagues*)
-(defparameter *fixtures-file* *uk-fixtures-file*)
-(defparameter *csv-cols* *uk-csv-cols*)
-(defparameter *teams-file* *uk-teams-file*)
+;;(defparameter *leagues* *uk-leagues*)
+;;(defparameter *fixtures-file* *uk-fixtures-file*)
+;;(defparameter *csv-cols* *uk-csv-cols*)
+;;(defparameter *teams-file* *uk-teams-file*)
 
-;;(defparameter *leagues* *summer-leagues*)
-;;(defparameter *fixtures-file* *summer-fixtures-file*)
-;;(defparameter *csv-cols* *summer-csv-cols*)
-;;(defparameter *teams-file* *summer-teams-file*)
-;;;(defparameter *leagues* (append *uk-leagues* *summer-leagues*))
+(defparameter *leagues* *summer-leagues*)
+(defparameter *fixtures-file* *summer-fixtures-file*)
+(defparameter *csv-cols* *summer-csv-cols*)
+(defparameter *teams-file* *summer-teams-file*)
+;;(defparameter *leagues* (append *uk-leagues* *summer-leagues*))
 
 (defvar *ht-stats* (make-hash-table :test #'equal))
 (defvar *ht-league-stats* (make-hash-table :test #'equal))
