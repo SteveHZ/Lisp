@@ -32,8 +32,9 @@
 (defparameter *summer-leagues*
   '(("swe" "Swedish League")
 ;	("nor" "Norwegian League")
-;	("fin" "Finnish League")
-	("roi" "Irish League")))
+	("fin" "Finnish League")
+	("roi" "Irish League")
+	("mls" "American League")))
 
 (proclaim '(inline csv-filename csv-league-name league-assoc))
 (defun csv-filename (league) (first league))
@@ -1007,13 +1008,13 @@
 	("Home Defeats" ,#'home-loss-percentage-return)
 	("Away Defeats" ,#'away-loss-percentage-return)
 
-	("Overs" ,#'over-percentage-return)
-	("Home Overs" ,#'home-over-percentage-return)
-	("Away Overs" ,#'away-over-percentage-return)	
+;	("Overs" ,#'over-percentage-return)
+;	("Home Overs" ,#'home-over-percentage-return)
+;	("Away Overs" ,#'away-over-percentage-return)	
 
-	("Unders" ,#'under-percentage-return)
-	("Home Unders" ,#'home-under-percentage-return)
-	("Away Unders" ,#'away-under-percentage-return)
+;	("Unders" ,#'under-percentage-return)
+;	("Home Unders" ,#'home-under-percentage-return)
+;	("Away Unders" ,#'away-under-percentage-return)
 
 	("Last Six Wins" ,#'last-six-win-percentage-return)
 	("Last Six Home Wins" ,#'last-six-home-win-percentage-return)
@@ -1027,13 +1028,14 @@
 	("Last Six Home Defeats" ,#'last-six-home-loss-percentage-return)
 	("Last Six Away Defeats" ,#'last-six-away-loss-percentage-return)
 
-	("Last Six Overs" ,#'last-six-over-percentage-return)
-	("Last Six Home Overs" ,#'last-six-home-over-percentage-return)
-	("Last Six Away Overs" ,#'last-six-away-over-percentage-return)
+;	("Last Six Overs" ,#'last-six-over-percentage-return)
+;	("Last Six Home Overs" ,#'last-six-home-over-percentage-return)
+;	("Last Six Away Overs" ,#'last-six-away-over-percentage-return)
 
-	("Last Six Unders" ,#'last-six-under-percentage-return)
-	("Last Six Home Unders" ,#'last-six-home-under-percentage-return)
-	("Last Six Away Unders" ,#'last-six-away-under-percentage-return)))
+;	("Last Six Unders" ,#'last-six-under-percentage-return)
+;	("Last Six Home Unders" ,#'last-six-home-under-percentage-return)
+;	("Last Six Away Unders" ,#'last-six-away-under-percentage-return)
+	))
 
 (defun write-returns (filename return-fns n)
   (with-open-file (stream filename
@@ -2189,7 +2191,8 @@
 							(,s2 "s2")
 							(,s3 "s3")
 							(,s4 "s4")
-							(,s5 "s5")))
+							(,s5 "s5")
+							(,s6 "s6")))
 
 (defparameter series-funcs
   `(("Wins" ,#'do-series-wins-calc)
@@ -2444,12 +2447,13 @@
 (defun say-signal-results ()
   (format t "~{~{~%~a ~18t~a~}~}" (get-signal-results)))
 
-(defvar *streak-funcs*
+(defparameter *streak-funcs*
   `(("Wins" ,#'do-streak-wins-calc)
 	("Draws" ,#'do-streak-draws-calc)
 	("Defeats" ,#'do-streak-defeats-calc)
-	("Overs" ,#'do-streak-overs-calc)
-	("Unders" ,#'do-streak-unders-calc)))
+;	("Overs" ,#'do-streak-overs-calc)
+;	("Unders" ,#'do-streak-unders-calc)
+	))
 
 (defun write-streaks (series funcs filename n)
   (with-open-file (stream filename
@@ -2509,11 +2513,13 @@
   (get-streak-games))
 
 (defun start++ ()
-  (update-csv-files)
+  (update-summer-csv-files)
+;  (update-csv-files)
   (start+)
   (export-returns)
-  (export-streaks st5)
-  (do-streaks))
+;  (export-streaks st5)
+ ; (do-streaks)
+  )
 
 ;; *******************************************
 ;; Max games since RESULT
@@ -2672,7 +2678,7 @@
 		(incf total-games)
 		(if (funcall result-fn game n)
 			(incf count)))
-	  (format t "~%~a ~5t: Draws : ~3d Games : ~3d Percent : ~5,2f%"
+	  (format t "~%~a ~5t: Wins : ~3d Games : ~3d Percent : ~5,2f%"
 			  (string-upcase filename) count total-games (calc-percent total-games count)))))
 
 ;; can expand these to home/away wins,
