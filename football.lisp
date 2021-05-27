@@ -1,4 +1,4 @@
-;; football.lisp May 2020
+; football.lisp May 2020
 
 (defpackage :football
   (:use :cl :cl-csv :iterate :parse-float :ppcre
@@ -31,7 +31,7 @@
 
 (defparameter *summer-leagues*
   '(("swe" "Swedish League")
-;	("nor" "Norwegian League")
+	("nor" "Norwegian League")
 	("fin" "Finnish League")
 	("roi" "Irish League")
 	("mls" "American League")))
@@ -1542,6 +1542,7 @@
   (clear-database)
   (import-teams)
   (load-leagues)
+  (load-fixtures)
   (load-my-teams)
   (do-stats)
   t)
@@ -2048,6 +2049,7 @@
 (defparameter s4 (make-long-series '(2 2 4 4 4 6 6 6 8 8 8)))
 (defparameter s5 (make-circular-series '(1 2 2 3 3 5 5) '(3 4 5)))
 (defparameter s6 (make-short-series '(2 3 4 5 6 8)))
+(defparameter stoffo (make-short-series '(11 22 44 66 88 132)))
 
 (defparameter st1 (make-streak-series '(1 1 1)))
 (defparameter st3 (make-streak-series '(3 2 1)))
@@ -2194,7 +2196,24 @@
 							(,s5 "s5")
 							(,s6 "s6")))
 
-(defparameter series-funcs
+(defparameter uk-series-funcs
+  `(("Wins" ,#'do-series-wins-calc)
+	("Home Wins" ,#'do-series-home-wins-calc)
+	("Away Wins" ,#'do-series-away-wins-calc)
+	("Draws" ,#'do-series-draws-calc)
+	("Home Draws" ,#'do-series-home-draws-calc)
+	("Away Draws" ,#'do-series-away-draws-calc)
+	("Defeats" ,#'do-series-defeats-calc)
+	("Home Defeats" ,#'do-series-home-defeats-calc)
+	("Away Defeats",#'do-series-away-defeats-calc)
+	("Overs" ,#'do-series-overs-calc)
+	("Home Overs" ,#'do-series-home-overs-calc)
+	("Away Overs" ,#'do-series-away-overs-calc)
+	("Unders" ,#'do-series-unders-calc)
+	("Home Unders" ,#'do-series-home-unders-calc)
+	("Away Unders" ,#'do-series-away-unders-calc)))
+
+(defparameter summer-series-funcs
   `(("Wins" ,#'do-series-wins-calc)
 	("Home Wins" ,#'do-series-home-wins-calc)
 	("Away Wins" ,#'do-series-away-wins-calc)
@@ -2205,7 +2224,7 @@
 	("Home Defeats" ,#'do-series-home-defeats-calc)
 	("Away Defeats",#'do-series-away-defeats-calc)))
 
-(defun write-series (series filename &optional (n 20))
+(defun write-series (series filename n &optional (series-funcs uk-series-funcs))
   (with-open-file (stream filename
 						  :direction :output
 						  :if-exists :supersede)
@@ -2247,18 +2266,19 @@
 		(push (list (date game) (home-team game) (away-team game)
 					current result
 					(home-odds game) (draw-odds game) (away-odds game)
-					stake returns)
+					(over-odds game) (under-odds game)
+ 					stake returns)
 			  my-list)))
 	(values (reverse my-list)
 			stake returns)))
 
 (defun do-team-series (team s games-list result-fn odds-fn)
-  (format t "~68tOdds ~83tStake ~89tReturn")
+  (format t "~65t1~71tX~77t2~86tO~92tU~97tStake~104tReturn")
 
   (multiple-value-bind (my-list stake returns)
 	  (do-team-series-calc team s games-list result-fn odds-fn)
 
-	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a  ~a  ~5,2f ~5,2f ~5,2f  : ~6,2f ~6,2f~}~}" my-list)
+	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a  ~a  ~5,2f ~5,2f ~5,2f  : ~5,2f ~5,2f : ~6,2f ~6,2f~}~}" my-list)
 	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (* (/ returns stake) 100))))
 
 (defun do-team-series-wins (team series)
