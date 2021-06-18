@@ -1,103 +1,225 @@
 
 ;; ===========
-;; 10-27/05/21
+;; 29/05/21
 
-(defun match-goals (game)
-  (+ (home-score game)
-	 (away-score game)))
+(defun start-archive (year)
+  "Load all data"
+  (clear-database)
+  (load-archive-leagues year)
+  t)
 
-(defun get-av-match-goals (team games-fn)
-  (let ((total 0)
-		(games-list (funcall games-fn team)))
+(defun reduce-list (league)
+  "Reduce a list of home teams from all games in LEAGUE by removing duplicate items"
+  (sort
+   (remove-duplicates
 	(mapcar #'(lambda (game)
-				(+= total (match-goals game)))
-			(funcall games-fn team))
-	(unless-zerop (length games-list)
-		(my-round (/ total (length games-list)) 0.01))))
+				(home-team game))
+			(cdr league))
+	:test #'string-equal)
+   #'string<))
 
-(defun get-average-goals (leagues games-fn)
-  (let ((my-list nil))
-	(with-all-teams (team leagues)
-	  (push (list (string-upcase (csv-filename league))
-				  team
-				  (get-av-match-goals team games-fn))
-			my-list))
-	(sort my-list #'< :key #'third)))
+(defun get-historical-teams ()
+  "Create teams-list for each historical league"
+  (mapcar #'(lambda (league)
+			  (list (string-upcase (csv-filename league))
+					(reduce-list league)))
+		  *db*))
 
-(defun do-av-goals-table (my-list)
+(defun load-archive-leagues (year)
+  (setf *db* nil)
+  (load-historical year)
+
+  (dolist (league *leagues*)
+	(setf *db* (append *db* (load-archive-league-data league))))
+  (setf *teams* (get-historical-teams)))
+
+(defun load-archive-league-data (league)
+  (list `(,(csv-filename league) .
+		  ,(import-csv
+			(format nil "c:/mine/lisp/data/historical/~a.csv" (csv-filename league))))))
+
+;; 14/06.21
+
+
+(defun do-series-wins-calc (series &optional (n 10))
+  (first-n n (do-series series #'home-aways #'home-away-win-result #'home-away-odds)))
+(defun do-series-home-wins-calc (series &optional (n 10))
+  (first-n n (do-series series #'homes #'home-away-win-result #'home-away-odds)))
+(defun do-series-away-wins-calc (series &optional (n 10))
+  (first-n n (do-series series #'aways #'home-away-win-result #'home-away-odds)))
+
+(defun do-series-defeats-calc (series &optional (n 10))
+  (first-n n (do-series series #'home-aways #'home-away-lost-result #'home-away-lost-odds)))
+(defun do-series-home-defeats-calc (series &optional (n 10))
+  (first-n n (do-series series #'homes #'home-away-lost-result #'home-away-lost-odds)))
+(defun do-series-away-defeats-calc (series &optional (n 10))
+  (first-n n (do-series series #'aways #'home-away-lost-result #'home-away-lost-odds)))
+
+(defun do-series-draws-calc (series &optional (n 10))
+  (first-n n (do-series series #'home-aways #'home-away-draw-result #'series-draw-odds)))
+(defun do-series-home-draws-calc (series &optional (n 10))
+  (first-n n (do-series series #'homes #'home-away-draw-result #'series-draw-odds)))
+(defun do-series-away-draws-calc (series &optional (n 10))
+  (first-n n (do-series series #'aways #'home-away-draw-result #'series-draw-odds)))
+
+(defun do-series-overs-calc (series &optional (n 10))
+  (first-n n (do-series series #'home-aways #'series-overs #'series-over-odds)))
+(defun do-series-home-overs-calc (series &optional (n 10))
+  (first-n n (do-series series #'homes #'series-overs #'series-over-odds)))
+(defun do-series-away-overs-calc (series &optional (n 10))
+  (first-n n (do-series series #'aways #'series-overs #'series-over-odds)))
+
+(defun do-series-unders-calc (series &optional (n 10))
+  (first-n n (do-series series #'home-aways #'series-unders #'series-under-odds)))
+(defun do-series-home-unders-calc (series &optional (n 10))
+  (first-n n (do-series series #'homes #'series-unders #'series-under-odds)))
+(defun do-series-away-unders-calc (series &optional (n 10))
+  (first-n n (do-series series #'aways #'series-unders #'series-under-odds)))
+
+
+(defun series-table (my-list)
   (format-table t my-list
-				:column-label '("League" "Team" "Av Goals")
-				:column-align '(:left :center :center )))
+				:column-label '("League" "Team" "Stake" "Return" "Percents")
+				:column-align '(:center :left :center :center :center)))
 
-(defun do-av-summer-goals ()
-  (do-av-goals-table
-	  (get-average-goals *summer-leagues* #'home-aways)))
-(defun do-av-summer-home-goals ()
-  (do-av-goals-table
-	  (get-average-goals *summer-leagues* #'homes)))
-(defun do-av-summer-away-goals ()
-  (do-av-goals-table
-	  (get-average-goals *summer-leagues* #'aways)))
+(defun do-series-wins (series &optional (n 10))
+  (series-table (do-series-wins-calc series n)))
+(defun do-series-home-wins (series &optional (n 10))
+  (series-table (do-series-wins-calc series n)))
+(defun do-series-away-wins (series &optional (n 10))
+  (series-table (do-series-wins-calc series n)))
 
-(defun count-ou-games (games-fn result-fn team)
-  (let ((wins 0)
-		(games-list (funcall games-fn team)))
-	(mapcar #'(lambda (game)
-				(when (funcall result-fn game)
-				  (incf wins)))
-			games-list)
-	(calc-percent (length games-list) wins)))
+(defun do-series-defeats (series &optional (n 10))
+  (series-table (do-series-defeats-calc series n)))
+(defun do-series-home-defeats (series &optional (n 10))
+  (series-table (do-series-defeats-calc series n)))
+(defun do-series-away-defeats (series &optional (n 10))
+  (series-table (do-series-defeats-calc series n)))
 
-(defun get-ou-wins (leagues games-fn result-fn)
+(defun do-series-draws (series &optional (n 10))
+  (series-table (do-series-draws-calc series n)))
+(defun do-series-home-draws (series &optional (n 10))
+  (series-table (do-series-draws-calc series n)))
+(defun do-series-away-draws (series &optional (n 10))
+  (series-table (do-series-draws-calc series n)))
+
+(defun do-series-overs (series &optional (n 10))
+  (series-table (do-series-overs-calc series n)))
+(defun do-series-home-overs (series &optional (n 10))
+  (series-table (do-series-overs-calc series n)))
+(defun do-series-away-overs (series &optional (n 10))
+  (series-table (do-series-overs-calc series n)))
+
+(defun do-series-unders (series &optional (n 10))
+  (series-table (do-series-unders-calc series n)))
+(defun do-series-home-unders (series &optional (n 10))
+  (series-table (do-series-unders-calc series n)))
+(defun do-series-away-unders (series &optional (n 10))
+  (series-table (do-series-unders-calc series n)))
+
+
+;;  xx
+
+(defun do-series (s games-fn result-fn odds-fn)
+  "Returns a list of all teams sorted by their returns using series S given the 
+   games returned by GAMES-FN which match results from RESULT-FN at odds ODDS-FN"
+  
   (let ((my-list nil))
-	(with-all-teams (team leagues)
-	  (push (list (string-upcase (csv-filename league))
-				  team
-				  (count-ou-games games-fn result-fn team))
-			my-list))
-	(sort my-list #'> :key #'third)))
+	(with-all-teams (team *leagues*)
+	  (let ((stake 0)
+			(returns 0)
+			(result ""))
+		(series-reset s)
+		(dolist (game (funcall games-fn team))
+		  (let ((current (series-current s)))
+			(+= stake current)
+			(cond ((funcall result-fn team game)
+				   (+= returns (* current (funcall odds-fn team game)))
+				   (setf result "W"))
+				  (t (setf result "L")))
+			(series-update s result)))
+		
+		(when (> stake 0)
+		  (push (list (string-upcase (csv-filename league))
+					  team
+					  stake
+					  (format nil "~6,2f" returns)
+					  (my-round (* 100 (/ returns stake)) 0.01))
+				my-list))))
 
-(defun do-ou-wins-table (my-list)
-  (format-table t my-list
-				:column-label '("League" "Team" "Wins")
-				:column-align '(:left :center :center )))
+	(sort my-list #'> :key #'fifth)))
 
-(defun do-summer-over-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'home-aways #'is-over))))
-(defun do-summer-home-over-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'homes #'is-over))))
-(defun do-summer-away-over-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'aways #'is-over))))
+(defun do-series-wins-calc (series)
+  (do-series series #'home-aways #'home-away-win-result #'home-away-odds))
+(defun do-series-home-wins-calc (series)
+  (do-series series #'homes #'home-away-win-result #'home-away-odds))
+(defun do-series-away-wins-calc (series)
+  (do-series series #'aways #'home-away-win-result #'home-away-odds))
 
-(defun do-summer-under-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'home-aways #'is-under))))
-(defun do-summer-home-under-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'homes #'is-under))))
-(defun do-summer-away-under-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'aways #'is-under))))
+(defun do-series-defeats-calc (series)
+  (do-series series #'home-aways #'home-away-lost-result #'home-away-lost-odds))
+(defun do-series-home-defeats-calc (series)
+  (do-series series #'homes #'home-away-lost-result #'home-away-lost-odds))
+(defun do-series-away-defeats-calc (series)
+  (do-series series #'aways #'home-away-lost-result #'home-away-lost-odds))
 
-(defun do-ou-wins-by-league (csv-league games-fn result-fn)
-  (let ((league-as-list `((,csv-league ""))))  ;; league-name not required here
-	(do-ou-wins-table
-		(get-ou-wins league-as-list games-fn result-fn))))
+(defun do-series-draws-calc (series)
+  (do-series series #'home-aways #'home-away-draw-result #'series-draw-odds))
+(defun do-series-home-draws-calc (series)
+  (do-series series #'homes #'home-away-draw-result #'series-draw-odds))
+(defun do-series-away-draws-calc (series)
+  (do-series series #'aways #'home-away-draw-result #'series-draw-odds))
 
-(defun do-summer-under-wins-by-league (csv-league)
-  (do-ou-wins-by-league csv-league #'home-aways #'is-under))
-(defun do-summer-home-under-wins-by-league (csv-league)
-  (do-ou-wins-by-league csv-league #'homes #'is-under))
-(defun do-summer-away-under-wins-by-league (csv-league)
-  (do-ou-wins-by-league csv-league #'aways #'is-under))
+(defun do-series-overs-calc (series)
+  (do-series series #'home-aways #'series-overs #'series-over-odds))
+(defun do-series-home-overs-calc (series)
+  (do-series series #'homes #'series-overs #'series-over-odds))
+(defun do-series-away-overs-calc (series)
+  (do-series series #'aways #'series-overs #'series-over-odds))
 
-(defun do-summer-over-wins-by-league (csv-league)
-  (do-ou-wins-by-league csv-league #'home-aways #'is-over))
-(defun do-summer-home-over-wins-by-league (csv-league)
-  (do-ou-wins-by-league csv-league #'homes #'is-over))
-(defun do-summer-away-over-wins-by-league (csv-league)
-  (do-ou-wins-by-league csv-league #'aways #'is-over))
+(defun do-series-unders-calc (series)
+  (do-series series #'home-aways #'series-unders #'series-under-odds))
+(defun do-series-home-unders-calc (series)
+  (do-series series #'homes #'series-unders #'series-under-odds))
+(defun do-series-away-unders-calc (series)
+  (do-series series #'aways #'series-unders #'series-under-odds))
 
+(defun series-table (my-list n)
+  (format-table t (first-n n my-list)
+				:column-label '("League" "Team" "Stake" "Return" "Percents")
+				:column-align '(:center :left :center :center :center)))
+
+(defun do-series-wins (series &optional (n 10))
+  (series-table (do-series-wins-calc series) n))
+(defun do-series-home-wins (series &optional (n 10))
+  (series-table (do-series-wins-calc series) n))
+(defun do-series-away-wins (series &optional (n 10))
+  (series-table (do-series-wins-calc series) n))
+
+(defun do-series-defeats (series &optional (n 10))
+  (series-table (do-series-defeats-calc series) n))
+(defun do-series-home-defeats (series &optional (n 10))
+  (series-table (do-series-defeats-calc series) n))
+(defun do-series-away-defeats (series &optional (n 10))
+  (series-table (do-series-defeats-calc series) n))
+
+(defun do-series-draws (series &optional (n 10))
+  (series-table (do-series-draws-calc series) n))
+(defun do-series-home-draws (series &optional (n 10))
+  (series-table (do-series-draws-calc series) n))
+(defun do-series-away-draws (series &optional (n 10))
+  (series-table (do-series-draws-calc series) n))
+
+(defun do-series-overs (series &optional (n 10))
+  (series-table (do-series-overs-calc series) n))
+(defun do-series-home-overs (series &optional (n 10))
+  (series-table (do-series-overs-calc series) n))
+(defun do-series-away-overs (series &optional (n 10))
+  (series-table (do-series-overs-calc series) n))
+
+(defun do-series-unders (series &optional (n 10))
+  (series-table (do-series-unders-calc series) n))
+(defun do-series-home-unders (series &optional (n 10))
+  (series-table (do-series-unders-calc series) n))
+(defun do-series-away-unders (series &optional (n 10))
+  (series-table (do-series-unders-calc series) n))

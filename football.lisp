@@ -16,7 +16,8 @@
 (defvar *fixtures* nil)
 (defvar *uk-csv-cols* '("Date" "HomeTeam" "AwayTeam" "FTHG" "FTAG" "FTR" "B365H" "B365D" "B365A" "B365>2.5" "B365<2.5"))
 (defvar *summer-csv-cols* '("Date" "HomeTeam" "AwayTeam" "FTHG" "FTAG" "FTR" "AvgH" "AvgD" "AvgA")) ;; no over/under data
-(defvar *historical-csv-cols* '("Date" "HomeTeam" "AwayTeam" "FTHG" "FTAG" "FTR" "B365H" "B365D" "B365A"))
+(defparameter *historical-csv-cols* '("Date" "HomeTeam" "AwayTeam" "FTHG" "FTAG" "FTR" "B365H" "B365D" "B365A" "BbAv>2.5" "BbAv<2.5"))
+(defparameter *historical-csv-cols-2019+* '("Date" "HomeTeam" "AwayTeam" "FTHG" "FTAG" "FTR" "B365H" "B365D" "B365A" "B365>2.5" "B365<2.5"))
 
 (defparameter *uk-leagues*
   '(("e0" "Premier League")
@@ -144,7 +145,6 @@
 (defun home-away (team game)
   (or (equal team (home-team game))
       (equal team (away-team game))))
-
 ;; Accessor functions for *fixtures*
 (defun fleague (game) (string-downcase (second game)))
 (defun fhome (game) (third game))
@@ -339,21 +339,21 @@
 		((is-win team game) "W")
 		(t "L")))
 
-(defun is-over (game &optional (n 2.5))
-  (< n (+ (home-score game)
-		  (away-score game))))
+(defun match-goals (game)
+  (+ (home-score game)
+	 (away-score game)))
 
+(defun is-over (game &optional (n 2.5))
+  (> (match-goals game) n))
 (defun is-under (game &optional (n 2.5))
-  (not (is-over game n)))
+  (< (match-goals game) n))
 
 (defun get-over-unders (gt-lt-fn fn team n)
   "Returns a list of games either over or under (specified by GT-LT-FN)
    N goals for TEAM from a list of home/away/both games specified by FN"
   (remove-if-not #'(lambda (game)
 					 (funcall gt-lt-fn
-							  (+ (home-score game)
-								 (away-score game))
-							  n))
+							  (match-goals game) n))
 				 (funcall fn team)))
 
 (defun home-away-overs (team &optional (n 2.5))
@@ -1037,6 +1037,9 @@
 ;	("Last Six Away Unders" ,#'last-six-away-under-percentage-return)
 	))
 
+;; Need to do soething similar to export-summer-series
+;; include different filenames for here and for series
+
 (defun write-returns (filename return-fns n)
   (with-open-file (stream filename
 						  :direction :output
@@ -1389,19 +1392,6 @@
   (update-files *summer-leagues* *summer-csv-cols*
 				"c:/mine/perl/football/data/summer"
 				"c:/mine/lisp/data"))
-
-(defun update-historical-files (leagues year from-path to-path &optional (csv-cols *historical-csv-cols*))
-  "Transform updated CSV files to required format"
-  (dolist (league leagues)
-    (let ((from-str (format nil "~a/~a/~a.csv" from-path (csv-league-name league) year))
-          (to-str (format nil "~a/~a.csv" to-path (csv-filename league))))
-      (format t "~%Writing ~a" to-str)
-      (transform-csv from-str to-str csv-cols))))
-
-(defun load-historical (leagues year)
-  (update-historical-files leagues year
-						   "c:/mine/perl/football/data/historical"
-						   "c:/mine/lisp/data/historical"))
 
 (defun transform-date (d)
   "Transform date from DD/MM/YYYY to YYYYMMDD"
@@ -2114,80 +2104,80 @@
 
 	(sort my-list #'> :key #'fifth)))
 
-(defun do-series-wins-calc (series &optional (n 10))
-  (first-n n (do-series series #'home-aways #'home-away-win-result #'home-away-odds)))
-(defun do-series-home-wins-calc (series &optional (n 10))
-  (first-n n (do-series series #'homes #'home-away-win-result #'home-away-odds)))
-(defun do-series-away-wins-calc (series &optional (n 10))
-  (first-n n (do-series series #'aways #'home-away-win-result #'home-away-odds)))
+(defun do-series-wins-calc (series)
+  (do-series series #'home-aways #'home-away-win-result #'home-away-odds))
+(defun do-series-home-wins-calc (series)
+  (do-series series #'homes #'home-away-win-result #'home-away-odds))
+(defun do-series-away-wins-calc (series)
+  (do-series series #'aways #'home-away-win-result #'home-away-odds))
 
-(defun do-series-defeats-calc (series &optional (n 10))
-  (first-n n (do-series series #'home-aways #'home-away-lost-result #'home-away-lost-odds)))
-(defun do-series-home-defeats-calc (series &optional (n 10))
-  (first-n n (do-series series #'homes #'home-away-lost-result #'home-away-lost-odds)))
-(defun do-series-away-defeats-calc (series &optional (n 10))
-  (first-n n (do-series series #'aways #'home-away-lost-result #'home-away-lost-odds)))
+(defun do-series-defeats-calc (series)
+  (do-series series #'home-aways #'home-away-lost-result #'home-away-lost-odds))
+(defun do-series-home-defeats-calc (series)
+  (do-series series #'homes #'home-away-lost-result #'home-away-lost-odds))
+(defun do-series-away-defeats-calc (series)
+  (do-series series #'aways #'home-away-lost-result #'home-away-lost-odds))
 
-(defun do-series-draws-calc (series &optional (n 10))
-  (first-n n (do-series series #'home-aways #'home-away-draw-result #'series-draw-odds)))
-(defun do-series-home-draws-calc (series &optional (n 10))
-  (first-n n (do-series series #'homes #'home-away-draw-result #'series-draw-odds)))
-(defun do-series-away-draws-calc (series &optional (n 10))
-  (first-n n (do-series series #'aways #'home-away-draw-result #'series-draw-odds)))
+(defun do-series-draws-calc (series)
+  (do-series series #'home-aways #'home-away-draw-result #'series-draw-odds))
+(defun do-series-home-draws-calc (series)
+  (do-series series #'homes #'home-away-draw-result #'series-draw-odds))
+(defun do-series-away-draws-calc (series)
+  (do-series series #'aways #'home-away-draw-result #'series-draw-odds))
 
-(defun do-series-overs-calc (series &optional (n 10))
-  (first-n n (do-series series #'home-aways #'series-overs #'series-over-odds)))
-(defun do-series-home-overs-calc (series &optional (n 10))
-  (first-n n (do-series series #'homes #'series-overs #'series-over-odds)))
-(defun do-series-away-overs-calc (series &optional (n 10))
-  (first-n n (do-series series #'aways #'series-overs #'series-over-odds)))
+(defun do-series-overs-calc (series)
+  (do-series series #'home-aways #'series-overs #'series-over-odds))
+(defun do-series-home-overs-calc (series)
+  (do-series series #'homes #'series-overs #'series-over-odds))
+(defun do-series-away-overs-calc (series)
+  (do-series series #'aways #'series-overs #'series-over-odds))
 
-(defun do-series-unders-calc (series &optional (n 10))
-  (first-n n (do-series series #'home-aways #'series-unders #'series-under-odds)))
-(defun do-series-home-unders-calc (series &optional (n 10))
-  (first-n n (do-series series #'homes #'series-unders #'series-under-odds)))
-(defun do-series-away-unders-calc (series &optional (n 10))
-  (first-n n (do-series series #'aways #'series-unders #'series-under-odds)))
+(defun do-series-unders-calc (series)
+  (do-series series #'home-aways #'series-unders #'series-under-odds))
+(defun do-series-home-unders-calc (series)
+  (do-series series #'homes #'series-unders #'series-under-odds))
+(defun do-series-away-unders-calc (series)
+  (do-series series #'aways #'series-unders #'series-under-odds))
 
-(defun series-table (my-list)
-  (format-table t my-list
+(defun series-table (n my-list)
+  (format-table t (first-n n my-list)
 				:column-label '("League" "Team" "Stake" "Return" "Percents")
 				:column-align '(:center :left :center :center :center)))
 
 (defun do-series-wins (series &optional (n 10))
-  (series-table (do-series-wins-calc series n)))
+  (series-table n (do-series-wins-calc series)))
 (defun do-series-home-wins (series &optional (n 10))
-  (series-table (do-series-wins-calc series n)))
+  (series-table n (do-series-wins-calc series)))
 (defun do-series-away-wins (series &optional (n 10))
-  (series-table (do-series-wins-calc series n)))
+  (series-table n (do-series-wins-calc series)))
 
 (defun do-series-defeats (series &optional (n 10))
-  (series-table (do-series-defeats-calc series n)))
+  (series-table n (do-series-defeats-calc series)))
 (defun do-series-home-defeats (series &optional (n 10))
-  (series-table (do-series-defeats-calc series n)))
+  (series-table n (do-series-defeats-calc series)))
 (defun do-series-away-defeats (series &optional (n 10))
-  (series-table (do-series-defeats-calc series n)))
+  (series-table n (do-series-defeats-calc series)))
 
 (defun do-series-draws (series &optional (n 10))
-  (series-table (do-series-draws-calc series n)))
+  (series-table n (do-series-draws-calc series)))
 (defun do-series-home-draws (series &optional (n 10))
-  (series-table (do-series-draws-calc series n)))
+  (series-table n (do-series-draws-calc series)))
 (defun do-series-away-draws (series &optional (n 10))
-  (series-table (do-series-draws-calc series n)))
+  (series-table n (do-series-draws-calc series)))
 
 (defun do-series-overs (series &optional (n 10))
-  (series-table (do-series-overs-calc series n)))
+  (series-table n (do-series-overs-calc series)))
 (defun do-series-home-overs (series &optional (n 10))
-  (series-table (do-series-overs-calc series n)))
+  (series-table n (do-series-overs-calc series)))
 (defun do-series-away-overs (series &optional (n 10))
-  (series-table (do-series-overs-calc series n)))
+  (series-table n (do-series-overs-calc series)))
 
 (defun do-series-unders (series &optional (n 10))
-  (series-table (do-series-unders-calc series n)))
+  (series-table n (do-series-unders-calc series)))
 (defun do-series-home-unders (series &optional (n 10))
-  (series-table (do-series-unders-calc series n)))
+  (series-table n (do-series-unders-calc series)))
 (defun do-series-away-unders (series &optional (n 10))
-  (series-table (do-series-unders-calc series n)))
+  (series-table n (do-series-unders-calc series)))
 
 (defparameter series-list `((,s1 "s1")
 							(,s2 "s2")
@@ -2224,26 +2214,31 @@
 	("Home Defeats" ,#'do-series-home-defeats-calc)
 	("Away Defeats",#'do-series-away-defeats-calc)))
 
-(defun write-series (series filename n &optional (series-funcs uk-series-funcs))
+(defun write-series (series filename n series-funcs)
   (with-open-file (stream filename
 						  :direction :output
 						  :if-exists :supersede)
 	(dolist (series-pair series-funcs)
 	  (destructuring-bind (series-result series-fn) series-pair
 		(format stream "~a~%" series-result)
-		(dolist (my-list (funcall series-fn series n))
+		(dolist (my-list (first-n n (funcall series-fn series)))
 		  (format stream "~a,~a,~a~%"
 				  (first my-list)
 				  (second my-list)
 				  (fifth my-list))))
 	  (format stream "~%"))))
 
-(defun export-series (&optional (n 20))
+(defun export-all-series (n series-funcs)
   (dolist (series-pair series-list 'done)
 	(destructuring-bind (series series-name) series-pair
 	  (let ((filename (format nil "c:/mine/lisp/data/series ~a.csv" series-name)))
 		(format t "~%Writing ~a..." filename)
-		(write-series series filename n)))))
+		(write-series series filename n series-funcs)))))
+
+(defun export-series (&optional (n 20))
+  (export-all-series n uk-series-funcs))
+(defun export-summer-series (&optional (n 20))
+  (export-all-series n summer-series-funcs))
 
 (defun do-team-series-calc (team s games-fn result-fn odds-fn)
   "Returns details of a TEAM with series S, using games returned from GAMES-FN
@@ -2356,27 +2351,29 @@
 
 	(sort my-list #'> :key #'fifth)))
 
-(defun do-streak-wins-calc (series &optional (n 10))
-  (first-n n (do-streak series #'home-aways #'home-away-win-result #'home-away-odds)))
-(defun do-streak-defeats-calc (series &optional (n 10))
-  (first-n n (do-streak series #'home-aways #'home-away-lost-result #'home-away-lost-odds)))
-(defun do-streak-draws-calc (series &optional (n 10))
-  (first-n n (do-streak series #'home-aways #'home-away-draw-result #'series-draw-odds)))
-(defun do-streak-overs-calc (series &optional (n 10))
-  (first-n n (do-streak series #'home-aways #'series-overs #'series-over-odds)))
-(defun do-streak-unders-calc (series &optional (n 10))
-  (first-n n (do-streak series #'home-aways #'series-unders #'series-under-odds)))
+;; IDEA - bet against ou ??
+
+(defun do-streak-wins-calc (series)
+  (do-streak series #'home-aways #'home-away-win-result #'home-away-odds))
+(defun do-streak-defeats-calc (series)
+  (do-streak series #'home-aways #'home-away-lost-result #'home-away-lost-odds))
+(defun do-streak-draws-calc (series)
+  (do-streak series #'home-aways #'home-away-draw-result #'series-draw-odds))
+(defun do-streak-overs-calc (series)
+  (do-streak series #'home-aways #'series-overs #'series-over-odds))
+(defun do-streak-unders-calc (series)
+  (do-streak series #'home-aways #'series-unders #'series-under-odds))
 
 (defun do-streak-wins (series &optional (n 10))
-  (series-table (do-streak-wins-calc series n)))
+  (series-table n (do-streak-wins-calc series)))
 (defun do-streak-defeats (series &optional (n 10))
-  (series-table (do-streak-defeats-calc series n)))
+  (series-table n (do-streak-defeats-calc series)))
 (defun do-streak-draws (series &optional (n 10))
-  (series-table (do-streak-draws-calc series n)))
+  (series-table n (do-streak-draws-calc series)))
 (defun do-streak-overs (series &optional (n 10))
-  (series-table (do-streak-overs-calc series n)))
+  (series-table n (do-streak-overs-calc series)))
 (defun do-streak-unders (series &optional (n 10))
-  (series-table (do-streak-unders-calc series n)))
+  (series-table n (do-streak-unders-calc series)))
 
 (defun do-team-streak (s team games-fn result-fn odds-fn)
   "Returns a list of all teams sorted by their returns using series S given the 
@@ -2670,23 +2667,6 @@
 	(best-series-table
 	 (first-n n (sort my-list #'> :key #'fifth)))))
 
-(defun reduce-list (league)
-"Reduce a list of home teams from all games in LEAGUE by removing duplicate items"
-  (sort
-   (remove-duplicates
-	(mapcar #'(lambda (game)
-				(home-team game))
-			(cdr league))
-	:test #'string-equal)
-   #'string<))
-
-(defun get-historical-teams ()
-"Create teams-list for each historical league"
-  (mapcar #'(lambda (league)
-			  (list (string-upcase (csv-filename league))
-					(reduce-list league)))
-		  *db*))
-
 (defun count-league-results (result-fn &optional (n 0))
   "Find league with highest average of results as defined by RESULT-FN"
   (dolist (league *leagues*)
@@ -2826,4 +2806,186 @@
 	(format t "~{~{~%~a ~18t: ~2d  ~2d  ~5,2f %~}~}"
 			(first-n n (sort my-list #'> :key #'fourth)))))
 
+;; ***************************************************************
+;; DSL
+;; Analyse summer over/under data
+
+(defun get-av-match-goals (team games-fn)
+  (let ((total 0)
+		(games-list (funcall games-fn team)))
+	(mapcar #'(lambda (game)
+				(+= total (match-goals game)))
+			(funcall games-fn team))
+	(unless-zerop (length games-list)
+	  (my-round (/ total (length games-list)) 0.01))))
+
+(defun get-average-goals (leagues games-fn)
+  (let ((my-list nil))
+	(with-all-teams (team leagues)
+	  (push (list (string-upcase (csv-filename league))
+				  team
+				  (get-av-match-goals team games-fn))
+			my-list))
+	(sort my-list #'< :key #'third)))
+
+(defun do-av-goals-table (my-list)
+  (format-table t my-list
+				:column-label '("League" "Team" "Av Goals")
+				:column-align '(:left :center :center )))
+
+(defun do-av-summer-goals ()
+  (do-av-goals-table
+	  (get-average-goals *summer-leagues* #'home-aways)))
+(defun do-av-summer-home-goals ()
+  (do-av-goals-table
+	  (get-average-goals *summer-leagues* #'homes)))
+(defun do-av-summer-away-goals ()
+  (do-av-goals-table
+	  (get-average-goals *summer-leagues* #'aways)))
+
+(defun count-ou-games (games-fn result-fn team)
+  (let ((wins 0)
+		(games-list (funcall games-fn team)))
+	(mapcar #'(lambda (game)
+				(when (funcall result-fn game)
+				  (incf wins)))
+			games-list)
+	(calc-percent (length games-list) wins)))
+
+(defun get-ou-wins (leagues games-fn result-fn)
+  (let ((my-list nil))
+	(with-all-teams (team leagues)
+	  (push (list (string-upcase (csv-filename league))
+				  team
+				  (count-ou-games games-fn result-fn team))
+			my-list))
+	(sort my-list #'> :key #'third)))
+
+(defun do-ou-wins-table2 (n my-list)
+  (format-table t (first-n n my-list)
+				:column-label '("League" "Team" "Wins")
+				:column-align '(:left :center :center )))
+(defun do-ou-wins-table (my-list)
+  (format-table t my-list
+				:column-label '("League" "Team" "Wins")
+				:column-align '(:left :center :center )))
+
+#|
+(defun do-summer-over-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (get-ou-wins *summer-leagues* #'home-aways #'is-over)))
+(defun do-summer-home-over-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (get-ou-wins *summer-leagues* #'homes #'is-over)))
+(defun do-summer-away-over-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (get-ou-wins *summer-leagues* #'aways #'is-over)))
+
+(defun do-summer-under-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (get-ou-wins *summer-leagues* #'home-aways #'is-under)))
+(defun do-summer-home-under-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (get-ou-wins *summer-leagues* #'homes #'is-under)))
+(defun do-summer-away-under-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (get-ou-wins *summer-leagues* #'aways #'is-under)))
+
+|#
+(defun do-summer-over-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (first-n n (get-ou-wins *summer-leagues* #'home-aways #'is-over))))
+(defun do-summer-home-over-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (first-n n (get-ou-wins *summer-leagues* #'homes #'is-over))))
+(defun do-summer-away-over-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (first-n n (get-ou-wins *summer-leagues* #'aways #'is-over))))
+
+(defun do-summer-under-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (first-n n (get-ou-wins *summer-leagues* #'home-aways #'is-under))))
+(defun do-summer-home-under-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (first-n n (get-ou-wins *summer-leagues* #'homes #'is-under))))
+(defun do-summer-away-under-wins (&optional (n 30))
+  (do-ou-wins-table
+	  (first-n n (get-ou-wins *summer-leagues* #'aways #'is-under))))
+
+;; ?? (length league-as-list) or let* league-len (length league-as-list) - use league-len as n
+(defun do-ou-wins-by-league (csv-league games-fn result-fn)
+  (let ((league-as-list `((,csv-league ""))))  ;; league-name not required here
+	(do-ou-wins-table
+		(get-ou-wins league-as-list games-fn result-fn))))
+
+(defun do-summer-under-wins-by-league (csv-league)
+  (do-ou-wins-by-league csv-league #'home-aways #'is-under))
+(defun do-summer-home-under-wins-by-league (csv-league)
+  (do-ou-wins-by-league csv-league #'homes #'is-under))
+(defun do-summer-away-under-wins-by-league (csv-league)
+  (do-ou-wins-by-league csv-league #'aways #'is-under))
+
+(defun do-summer-over-wins-by-league (csv-league)
+  (do-ou-wins-by-league csv-league #'home-aways #'is-over))
+(defun do-summer-home-over-wins-by-league (csv-league)
+  (do-ou-wins-by-league csv-league #'homes #'is-over))
+(defun do-summer-away-over-wins-by-league (csv-league)
+  (do-ou-wins-by-league csv-league #'aways #'is-over))
+
+;; ***************************************************************
+;; DSL
+;; Load historical files
+
+(defun reduce-list (league)
+  "Reduce a list of home teams from all games in LEAGUE by removing duplicate items"
+  (sort
+   (remove-duplicates
+	(mapcar #'(lambda (game)
+				(home-team game))
+			(cdr league))
+	:test #'string-equal)
+   #'string<))
+
+(defun get-historical-teams ()
+  "Create teams-list for each historical league"
+  (mapcar #'(lambda (league)
+			  (list (string-upcase (csv-filename league))
+					(reduce-list league)))
+		  *db*))
+
+(defun load-archive-league-data (league)
+  (list `(,(csv-filename league) .
+		  ,(import-csv
+			(format nil "c:/mine/lisp/data/historical/~a.csv" (csv-filename league))))))
+
+(defun update-historical-files (leagues year from-path to-path &optional (csv-cols *historical-csv-cols*))
+  "Transform updated CSV files to required format"
+  (dolist (league leagues)
+    (let ((from-str (format nil "~a/~a/~a.csv" from-path (csv-league-name league) year))
+          (to-str (format nil "~a/~a.csv" to-path (csv-filename league))))
+      (format t "~%Writing ~a" to-str)
+      (transform-csv from-str to-str csv-cols))))
+
+(defun load-historical (year &optional (leagues *leagues*))
+  (let? csv-cols (< year 2019)
+	  *historical-csv-cols*
+	  *historical-csv-cols-2019+*
+	(update-historical-files leagues year
+							 "c:/mine/perl/football/data/historical"
+							 "c:/mine/lisp/data/historical"
+							 csv-cols)))
+
+(defun load-archive-leagues (year)
+  (setf *db* nil)
+  (load-historical year)
+
+  (dolist (league *leagues*)
+	(setf *db* (append *db* (load-archive-league-data league))))
+  (setf *teams* (get-historical-teams)))
+
+(defun start-archive (year)
+  "Load all data"
+  (clear-database)
+  (load-archive-leagues year)
+  t)
 
