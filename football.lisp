@@ -2861,62 +2861,34 @@
 			my-list))
 	(sort my-list #'> :key #'third)))
 
-(defun do-ou-wins-table2 (n my-list)
+(defun do-ou-wins-table (n my-list)
   (format-table t (first-n n my-list)
 				:column-label '("League" "Team" "Wins")
 				:column-align '(:left :center :center )))
-(defun do-ou-wins-table (my-list)
-  (format-table t my-list
-				:column-label '("League" "Team" "Wins")
-				:column-align '(:left :center :center )))
-
-#|
 (defun do-summer-over-wins (&optional (n 30))
-  (do-ou-wins-table
+  (do-ou-wins-table n
 	  (get-ou-wins *summer-leagues* #'home-aways #'is-over)))
 (defun do-summer-home-over-wins (&optional (n 30))
-  (do-ou-wins-table
+  (do-ou-wins-table n
 	  (get-ou-wins *summer-leagues* #'homes #'is-over)))
 (defun do-summer-away-over-wins (&optional (n 30))
-  (do-ou-wins-table
+  (do-ou-wins-table n
 	  (get-ou-wins *summer-leagues* #'aways #'is-over)))
 
 (defun do-summer-under-wins (&optional (n 30))
-  (do-ou-wins-table
+  (do-ou-wins-table n
 	  (get-ou-wins *summer-leagues* #'home-aways #'is-under)))
 (defun do-summer-home-under-wins (&optional (n 30))
-  (do-ou-wins-table
+  (do-ou-wins-table n
 	  (get-ou-wins *summer-leagues* #'homes #'is-under)))
 (defun do-summer-away-under-wins (&optional (n 30))
-  (do-ou-wins-table
+  (do-ou-wins-table n
 	  (get-ou-wins *summer-leagues* #'aways #'is-under)))
 
-|#
-(defun do-summer-over-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'home-aways #'is-over))))
-(defun do-summer-home-over-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'homes #'is-over))))
-(defun do-summer-away-over-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'aways #'is-over))))
-
-(defun do-summer-under-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'home-aways #'is-under))))
-(defun do-summer-home-under-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'homes #'is-under))))
-(defun do-summer-away-under-wins (&optional (n 30))
-  (do-ou-wins-table
-	  (first-n n (get-ou-wins *summer-leagues* #'aways #'is-under))))
-
-;; ?? (length league-as-list) or let* league-len (length league-as-list) - use league-len as n
 (defun do-ou-wins-by-league (csv-league games-fn result-fn)
   (let ((league-as-list `((,csv-league ""))))  ;; league-name not required here
-	(do-ou-wins-table
-		(get-ou-wins league-as-list games-fn result-fn))))
+	(do-ou-wins-table (length (get-teams csv-league))
+	  (get-ou-wins league-as-list games-fn result-fn))))
 
 (defun do-summer-under-wins-by-league (csv-league)
   (do-ou-wins-by-league csv-league #'home-aways #'is-under))
@@ -2989,3 +2961,18 @@
   (load-archive-leagues year)
   t)
 
+(defun do-euro-series-calc (s)
+  "Returns stake and return for list of games at Euro 2021 using series S"
+
+  (let ((stake 0)
+		(returns 0))
+	(series-reset s)
+	(dolist (game (import-csv "C:/Mine/perl/Football/data/euros.csv"))
+	  (let ((current (series-current s)))
+		(+= stake current)
+		(if (string-equal (second game) "W")
+			(+= returns (* current (parse-float (first game)))))
+		(series-update s (second game))))
+	
+	(values stake returns
+			(calc-percent stake returns))))
