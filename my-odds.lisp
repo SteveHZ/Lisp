@@ -143,6 +143,10 @@
   (calc-game self home-expect away-expect)
   (calc-nil-expects (pois self) home-expect away-expect))
 
+(defmethod calc-score-expect ((self my-odds) home-expect away-expect home-score away-score)
+  (calc-game self home-expect away-expect)
+  (calc-expect (pois self) home-expect away-expect home-score away-score))
+
 (defmethod print-object ((self my-odds) stream)
   (print-unreadable-object (self stream :type t)
 	(my-describe self)))

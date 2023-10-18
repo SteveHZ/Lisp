@@ -39,6 +39,9 @@
 (defmethod calc-nil-expects ((self my-poisson) home-expect away-expect)
   (aref (results self) 0 0))
 
+(defmethod calc-expect ((self my-poisson) home-expect away-expect home-score away-score)
+  (aref (results self) home-score away-score))
+
 (defmethod my-describe ((self my-poisson))
   (with-accessors ((size size)
                    (results results)) self

@@ -788,6 +788,33 @@
 (do-say-n-ou say-last-n-home-under-wins #'last-n-home-unders)
 (do-say-n-ou say-last-n-away-under-wins #'last-n-away-unders)
 
+(defun get-team-ou-stats (team games-fn ou-fn)
+  (labels ((inner (wins-count games-count)
+			 (mapcar #'(lambda (game)
+						 (incf games-count)
+						 (when (funcall ou-fn game)
+						   (incf wins-count)))
+					 (funcall games-fn team))
+			 (values wins-count games-count)))
+	(inner 0 0)))
+
+(defun get-team-over-stats (team games-fn)
+  (get-team-ou-stats team games-fn #'is-over))
+(defun get-team-under-stats (team games-fn)
+  (get-team-ou-stats team games-fn #'is-under))
+
+(defun say-game-over-stats (home-team away-team)
+  (multiple-value-bind (overs games) (get-team-over-stats home-team #'last-six-homes)
+	(format t "~%Home Team : ~a from ~a = ~,2f %" overs games (calc-percent games overs)))
+  (multiple-value-bind (overs games) (get-team-over-stats away-team #'last-six-aways)
+	(format t "~%Away Team : ~a from ~a = ~,2f %" overs games (calc-percent games overs))))
+
+(defun say-game-under-stats (home-team away-team)
+  (multiple-value-bind (unders games) (get-team-under-stats home-team #'last-six-homes)
+	(format t "~%Home Team : ~a from ~a = ~,2f %" unders games (calc-percent games unders)))
+  (multiple-value-bind (unders games) (get-team-under-stats away-team #'last-six-aways)
+	(format t "~%Away Team : ~a from ~a = ~,2f %" unders games (calc-percent games unders))))
+
 ;; **************************************************************
 ;;
 ;;  DSL Returns
@@ -2135,10 +2162,32 @@
 			  (game-home-team game) (game-away-team game)
 			  (game-home-goals game) (game-away-goals game)))))
 
+(defun new-over3.5-odds (&key (games *expects*)
+	;						  (cmp-fn #'game-over-odds)
+							  )
+  "Print all games where over 3.5 odds are under 2.0"
+  (let ((my-list nil)
+	;	(sorted-list nil)
+		)
+
+	(dolist (game games)
+	  (let ((ds (make-instance 'my-odds :size 10)))
+		(calc-game ds (game-home-goals game) (game-away-goals game))
+		(let ((odds (over3.5 ds)))
+		  (when (< odds 2)
+;;			(push game my-list)
+
+			(push (list game odds) my-list)
+			))))
+
+;	(setf sorted-list (sort my-list #'< :key cmp-fn))
+;	(print-game-odds sorted-list)
+my-list
+	))
 
 (defun over3.5-odds (&key (games *expects*)
 						  (cmp-fn #'game-over-odds)
-						  (write-org-file t))
+						  (write-org-file nil)						   )
   "Print all games where over 3.5 odds are under 2.0"
   (let ((my-list nil)
 		(sorted-list nil))
@@ -3867,6 +3916,85 @@
 
 ;; ***************************************************************
 ;; DSL
+;; Favourites
+
+(defun do-favourites (&optional (my-stake 1))
+  (dolist (league *leagues*)
+	(let ((stake 0)
+		  (fav-wins 0)
+		  (under-wins 0)
+		  (draw-wins 0))
+	  (dolist (game (get-league (csv-filename league)))
+		(+= stake my-stake)
+		(cond ((string-equal (result game) "D")
+			   (+= draw-wins (* my-stake (draw-odds game))))
+			  ((< (home-odds game)
+				  (away-odds game)) ; home favourite
+			   (if (string-equal (result game) "H")
+				   (+= fav-wins (* my-stake (home-odds game)))
+				   (+= under-wins (* my-stake (away-odds game)))))
+			  ((< (away-odds game)
+				  (home-odds game)) ; home favourite
+			   (if (string-equal (result game) "A")
+				   (+= fav-wins (* my-stake (away-odds game)))
+				   (+= under-wins (* my-stake (home-odds game)))))
+			  (t (-= stake my-stake)))) ; odds are equal - no play
+
+	  (format t "~%~% ~a " (csv-league-name league))
+	  (format t "~% Stake : £~,2f  ~%   Underdogs  : £~,2f (~,2f%)  ~%   Favourites : £~,2f (~,2f%)  ~%   Draws      : £~,2f (~,2f%)"
+			  stake
+			  under-wins (calc-percent stake under-wins)
+			  fav-wins (calc-percent stake fav-wins)
+			  draw-wins (calc-percent stake draw-wins)))))
+
+
+(defun do-favourites2 (&key (my-stake 1) (udog-odds 2.8))
+  (dolist (league *leagues*)
+	(let ((stake 0)
+		  (fav-wins 0)
+		  (under-wins 0)
+		  (draw-wins 0))
+	  (dolist (game (get-league (csv-filename league)))
+		(+= stake my-stake)
+		(cond ((string-equal (result game) "D")
+			   (+= draw-wins (* my-stake (draw-odds game))))
+			  ((and ;(< (home-odds game) 2) ; home favourites
+				(<= (away-odds game) udog-odds)
+				(< (home-odds game)
+				   (away-odds game)))
+			   (if (string-equal (result game) "H")
+				   (+= fav-wins (* my-stake (home-odds game)))
+				   (+= under-wins (* my-stake (away-odds game)))))
+			  ((and ;(< (away-odds game) 2) ; away favourites
+				(<= (home-odds game) udog-odds)
+				(< (away-odds game)
+				   (home-odds game)))
+			   (if (string-equal (result game) "A")
+				   (+= fav-wins (* my-stake (away-odds game)))
+				   (+= under-wins (* my-stake (home-odds game)))))
+			  (t (-= stake my-stake)))) ; odds are equal - no play
+
+	  (format t "~%~% ~a " (csv-league-name league))
+	  (format t "~% Stake : £~,2f  ~%   Underdogs  : £~,2f (~,2f%)  ~%   Favourites : £~,2f (~,2f%)  ~%   Draws      : £~,2f (~,2f%)"
+			  stake
+			  under-wins (calc-percent stake under-wins)
+			  fav-wins (calc-percent stake fav-wins)
+			  draw-wins (calc-percent stake draw-wins)))))
+
+(defun fav-win (game)
+  (or (and (< (home-odds game) (away-odds game))
+		   (string-equal (result game) "H"))
+	  (and (< (away-odds game) (home-odds game))
+		   (string-equal (result game) "A"))))
+
+(defun udog-win (game)
+  (or (and (< (home-odds game) (away-odds game))
+		   (string-equal (result game) "A"))
+	  (and (< (away-odds game) (home-odds game))
+		   (string-equal (result game) "H"))))
+
+;; ***************************************************************
+;; DSL
 ;; Load historical files
 
 (defun reduce-list (league)
@@ -4053,4 +4181,11 @@
 (defun rpo (score overs)
   (let ((delivs (get-deliveries overs)))
 	(format t "~,2f" (rpo-from-deliveries score delivs))))
+
+;; ***************************************************************
+
+(defparameter *dnb* nil)
+
+(defun load-dnb ()
+  (setf *dnb* (import-csv "c:/mine/perl/football/data/dnb.csv")))
 
