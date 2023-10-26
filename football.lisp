@@ -598,6 +598,8 @@
 				(format t "~%~a Draws     : ~3d ~$%" league-name draws (calc-percent num-games draws))))
 		  *leagues*))
 
+
+
 (defun lengths (args)
   "Return the a list of lengths of each list in a given list of lists
    eg (lengths '((1 2 3) (9 8 7 6) (1 2 3 4 5 6 7 8 9))) returns (3 4 9)"
@@ -2031,15 +2033,6 @@
   (format t "~%")
   (print-game-odds (safe-sort (calc-game-odds :games games) #'> :key cmp-fn)))
 
-(defun date-odds (date)
-  (let ((my-expects nil))
-	(mapcar #'(lambda (game)
-				(when (string-equal (subseq (fdate-time game) 3 8)
-									(subseq date 0 5)) ;; to allow date to be entered as either DD/MM or DD/MM/YY
-				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
-			*fixtures*)
-	(print-game-odds (do-odds :games my-expects))))
-
 (defun diff-ou-odds-fn (game)
   (abs (- (game-over-odds game)
 		  (game-under-odds game))))
@@ -2069,33 +2062,52 @@
 	(+ (* 100 (parse-integer (subseq game-time 0 2)))
 	   (parse-integer (subseq game-time 3 5)))))
 
-(defun early-odds (date)
+(defun date-odds-fn (date)
+  (let ((my-expects nil))
+	(mapcar #'(lambda (game)
+				(when (string-equal (subseq (fdate-time game) 3 8)
+									(subseq date 0 5)) ;; to allow date to be entered as either DD/MM or DD/MM/YY
+				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
+			*fixtures*)
+	(calc-game-odds :games my-expects)))
+
+(defun early-odds-fn (date)
   (let ((my-expects nil))
 	(mapcar #'(lambda (game)
 				(when (and (string-equal (get-date-as-string game) date)
 						   (< (get-time game) 1500))
 				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
 			*fixtures*)
-	(print-game-odds (do-odds :games my-expects))))
+	(calc-game-odds :games my-expects)))
 
-(defun day-odds (date)
+(defun day-odds-fn (date)
   (let ((my-expects nil))
 	(mapcar #'(lambda (game)
 				(when (and (string-equal (get-date-as-string game) date)
-						   (> (get-time game) 1430)
+						   (> (get-time game) 1429)
 						   (< (get-time game) 1631))
 				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
 			*fixtures*)
-	(print-game-odds (do-odds :games my-expects))))
+	(calc-game-odds :games my-expects)))
 
-(defun late-odds (date)
+ late-odds-fn (date)
   (let ((my-expects nil))
 	(mapcar #'(lambda (game)
 				(when (and (string-equal (get-date-as-string game) date)
 						   (> (get-time game) 1650))
 				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
 			*fixtures*)
-	(print-game-odds (do-odds :games my-expects))))
+	(calc-game-odds :games my-expects)))
+
+(defmacro do-odds-fn (fn-name odds-fn)
+  `(defun ,fn-name (date &key (cmp-fn #'game-over-odds))
+	 (print-game-odds
+	  (sort (funcall ,odds-fn date) #'> :key cmp-fn))))
+
+(do-odds-fn date-odds #'date-odds-fn)
+(do-odds-fn early-odds #'early-odds-fn)
+(do-odds-fn day-odds #'day-odds-fn)
+(do-odds-fn late-odds #'late-odds-fn)
 
 (defun expect-goals (game)
   (+ (game-home-goals game)
@@ -2148,8 +2160,7 @@
 (defun write-to-org-file (my-list)
   (with-open-file (stream "C:/Users/Steve/Dropbox/org/overs.org"
 						  :direction :output
-;						  :if-exists :supersede
-						  :if-exists :append
+						  :if-exists :append ;:if-exists :supersede
 						  :if-does-not-exist :create)
 	
 	(format stream "~%* ")
@@ -2162,32 +2173,9 @@
 			  (game-home-team game) (game-away-team game)
 			  (game-home-goals game) (game-away-goals game)))))
 
-(defun new-over3.5-odds (&key (games *expects*)
-	;						  (cmp-fn #'game-over-odds)
-							  )
-  "Print all games where over 3.5 odds are under 2.0"
-  (let ((my-list nil)
-	;	(sorted-list nil)
-		)
-
-	(dolist (game games)
-	  (let ((ds (make-instance 'my-odds :size 10)))
-		(calc-game ds (game-home-goals game) (game-away-goals game))
-		(let ((odds (over3.5 ds)))
-		  (when (< odds 2)
-;;			(push game my-list)
-
-			(push (list game odds) my-list)
-			))))
-
-;	(setf sorted-list (sort my-list #'< :key cmp-fn))
-;	(print-game-odds sorted-list)
-my-list
-	))
-
 (defun over3.5-odds (&key (games *expects*)
 						  (cmp-fn #'game-over-odds)
-						  (write-org-file nil)						   )
+						  (write-org-file nil))
   "Print all games where over 3.5 odds are under 2.0"
   (let ((my-list nil)
 		(sorted-list nil))
@@ -2199,8 +2187,8 @@ my-list
 		  (push game my-list))))
 
 	(setf sorted-list (sort my-list
-							#'< :key cmp-fn))
-	(print-game-odds sorted-list)
+							#'> :key cmp-fn))
+	(print-game-odds  sorted-list)
 
 	(when (equal write-org-file t)
 	  (write-to-org-file sorted-list))))
@@ -3919,6 +3907,7 @@ my-list
 ;; Favourites
 
 (defun do-favourites (&optional (my-stake 1))
+  "Bet on underdogs for all games"
   (dolist (league *leagues*)
 	(let ((stake 0)
 		  (fav-wins 0)
@@ -3949,6 +3938,7 @@ my-list
 
 
 (defun do-favourites2 (&key (my-stake 1) (udog-odds 2.8))
+  "Bet on underdogs for all games where underdog 1X2 odds <= UDOG-ODDS"
   (dolist (league *leagues*)
 	(let ((stake 0)
 		  (fav-wins 0)

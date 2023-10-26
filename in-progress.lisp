@@ -358,3 +358,80 @@
 (defun diff-odds (&key (games *expects*) (n 20))
   (print-game-odds (first-n n
 			(safe-sort (calc-game-odds :games games) #'> :key #'diff-odds-fn))))
+
+
+----------------------
+
+
+(defun early-odds-fn (date)
+  (let ((my-expects nil))
+	(mapcar #'(lambda (game)
+				(when (and (string-equal (get-date-as-string game) date)
+						   (< (get-time game) 1500))
+				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
+			*fixtures*)
+	(calc-game-odds :games my-expects)))
+
+(defun early-odds2 (date)
+  (print-game-odds
+   (early-odds-fn date)))
+
+(defun day-odds-fn (date)
+  (let ((my-expects nil))
+	(mapcar #'(lambda (game)
+				(when (and (string-equal (get-date-as-string game) date)
+						   (> (get-time game) 1429)
+						   (< (get-time game) 1631))
+				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
+			*fixtures*)
+	(calc-game-odds :games my-expects)))
+
+(defun day-odds2 (date)
+  (print-game-odds
+   (day-odds-fn date)))
+
+(defun late-odds-fn (date)
+  (let ((my-expects nil))
+	(mapcar #'(lambda (game)
+				(when (and (string-equal (get-date-as-string game) date)
+						   (> (get-time game) 1650))
+				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
+			*fixtures*)
+	(calc-game-odds :games my-expects)))
+
+(defun late-odds2 (date)
+  (print-game-odds
+   (late-odds-fn date)))
+
+(defun date-odds-fn (date)
+  (let ((my-expects nil))
+	(mapcar #'(lambda (game)
+				(when (string-equal (subseq (fdate-time game) 3 8)
+									(subseq date 0 5)) ;; to allow date to be entered as either DD/MM or DD/MM/YY
+				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
+			*fixtures*)
+	(calc-game-odds :games my-expects)))
+
+(defun date-odds2 (date)
+  (print-game-odds
+   (date-odds-fn date)))
+
+(defun date-odds (date)
+  (let ((my-expects nil))
+	(mapcar #'(lambda (game)
+				(when (string-equal (subseq (fdate-time game) 3 8)
+									(subseq date 0 5)) ;; to allow date to be entered as either DD/MM or DD/MM/YY
+				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
+			*fixtures*)
+	(print-game-odds (do-odds :games my-expects))))
+
+
+(defmacro do-odds-fn (fn-name odds-fn)
+  `(defun ,fn-name (date)
+	 (print-game-odds (funcall ,odds-fn date))))
+
+(do-odds-fn date-odds-mac #'date-odds-fn)
+(do-odds-fn early-odds-mac #'early-odds-fn)
+(do-odds-fn day-odds-mac #'day-odds-fn)
+(do-odds-fn late-odds-mac #'late-odds-fn)
+
