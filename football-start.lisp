@@ -1,4 +1,4 @@
-(in-package "COMMON-LISP-USER")
+() (in-package "COMMON-LISP-USER")
 ;;(make-package :football)
 ;;(in-package :football)
 

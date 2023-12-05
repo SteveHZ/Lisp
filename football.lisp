@@ -1703,8 +1703,6 @@
 (defun calc-new-stake (series-amount odds)
   (ceiling (get-new-stake series-amount odds)))
 
-
-
 (defun calc-stake (series-amount odds)
   (let* ((new-stake (calc-new-stake series-amount odds))
 		 (new-return (* new-stake odds))
@@ -1751,6 +1749,7 @@
                       (incf count)
                       (inner (rest wanted) (rest src)))
                      (t (incf count)
+;						(format t "~%{~a}" (rest wanted))
                         (inner wanted (rest src))))))
       (inner wanted-list src-list))))
 
@@ -1764,6 +1763,7 @@
 
   (let* ((data (import-csv file-from))
          (cols-list (find-header-columns columns (car data))))
+;	(format t "~%~a" (first data))
     (export-csv
      (mapcar #'(lambda (row)
                  (mapcar #'(lambda (cell)
@@ -2090,7 +2090,7 @@
 			*fixtures*)
 	(calc-game-odds :games my-expects)))
 
- late-odds-fn (date)
+(defun late-odds-fn (date)
   (let ((my-expects nil))
 	(mapcar #'(lambda (game)
 				(when (and (string-equal (get-date-as-string game) date)
@@ -2453,7 +2453,7 @@
   (format t "~%~%SINCE LAST DRAW :~%")
   (since-last-draw))
 
-(defun count-season (fn test-fn)
+(defun count-season (games-fn test-fn)
   "Returns a list of all teams sorted by the games returned by FN
    which match the result TEST-FN"
 
@@ -2465,26 +2465,27 @@
 
 	(let ((my-list nil))
 	  (with-all-teams (team *leagues*)
-		(let* ((games (funcall fn team))
+		(let* ((games (funcall games-fn team))
 			   (count (inner games 0)))
  		  (push (list team
- 					  (length games)
 					  count
-					  (my-round (* 100 (/ count (length games))) 0.01))
+ 					  (length games)
+					  (calc-percent (length games) count))
 				my-list)))
 
 	  (sort my-list #'> :key #'fourth))))
 
 (defun count-games-table (my-list)
   (format-table t my-list
-				:column-label '("Team" "Games" "Wins" "Percents")
+				:column-label '("Team" "Wins" "Games" "Percents")
 				:column-align '(:left :center :center :center)))
 
-(defun count-games (fn result n)
+(defun count-games (games-fn result n)
   (count-games-table
    (first-n n (count-season
-			   fn #'(lambda (game)
-					  (equal result (result game)))))))
+			   games-fn
+			   #'(lambda (game)
+				   (equal result (result game)))))))
 
 (defun count-home-draws (&optional (n 10))
   (count-games #'homes "D" n))
@@ -2503,25 +2504,26 @@
 (defun count-draws (&optional (n 10))
   (count-games #'home-aways "D" n))
 
-(defun count-ou (fn test-fn n goals)
+(defun count-ou (games-fn test-fn n goals)
   (count-games-table
    (first-n n (count-season
-			   fn #'(lambda (game)
-					  (funcall test-fn game goals))))))
+			   games-fn
+			   #'(lambda (game)
+				   (funcall test-fn game goals))))))
 
-(defun count-overs (&key (show 10) (goals 2.5))
-  (count-ou #'home-aways #'is-over show goals))
-(defun count-home-overs (&key (show 10) (goals 2.5))
-  (count-ou #'homes #'is-over show goals))
-(defun count-away-overs (&key (show 10) (goals 2.5))
-  (count-ou #'aways #'is-over show goals))
+(defun count-overs (&key (n 10) (goals 2.5))
+  (count-ou #'home-aways #'is-over n goals))
+(defun count-home-overs (&key (n 10) (goals 2.5))
+  (count-ou #'homes #'is-over n goals))
+(defun count-away-overs (&key (n 10) (goals 2.5))
+  (count-ou #'aways #'is-over n goals))
 
-(defun count-unders (&key (show 10) (goals 2.5))
-  (count-ou #'home-aways #'is-under show goals))
-(defun count-home-unders (&key (show 10) (goals 2.5))
-  (count-ou #'homes #'is-under show goals))
-(defun count-away-unders (&key (show 10) (goals 2.5))
-  (count-ou #'aways #'is-under show goals))
+(defun count-unders (&key (n 10) (goals 2.5))
+  (count-ou #'home-aways #'is-under n goals))
+(defun count-home-unders (&key (n 10) (goals 2.5))
+  (count-ou #'homes #'is-under n goals))
+(defun count-away-unders (&key (n 10) (goals 2.5))
+  (count-ou #'aways #'is-under n goals))
 
 ;; *******************************************
 ;; DSL Series
@@ -2540,6 +2542,7 @@
 				   (string-equal result "R"))
 			   (setf x (append (copy-list start-list) y)))
 			  ((string-equal result "L")
+
 			   (setf x (rest x)))
 			  ((string-equal result "P")
 			   (print start-list)
@@ -3299,6 +3302,30 @@
 (defun do-team-series-loss-win (team s)
   (do-ou-team-series team s #'is-defeat #'series-away-odds #'is-win #'series-away-odds))
 
+;; Compare returns
+
+(defun team-series-cmp (team games-list result-fn odds-fn series)
+  "Calculate returns for TEAM for given RESULT-FN"
+  (multiple-value-bind (my-list stake returns)
+	  (do-team-series-calc team series games-list result-fn odds-fn)
+	my-list ;; need to evaluate this to avoid an error but don't want to return it below
+	(values stake returns)))
+
+(defun do-team-series-cmp (home-team away-team result-fn odds-fn series)
+  "Compare home and away returns for HOME-TEAM and AWAY-TEAM for given RESULT-FN "
+  (multiple-value-bind (stake returns)
+	  (team-series-cmp home-team #'homes result-fn odds-fn series)
+	(format t "~%~a ~20t: £~6,2f £~6,2f ~7,2f%" home-team stake returns (calc-percent stake returns)))
+  (multiple-value-bind (stake returns)
+	  (team-series-cmp away-team #'aways result-fn odds-fn series)
+	(format t "~%~a ~20t: £~6,2f £~6,2f ~7,2f%" away-team stake returns (calc-percent stake returns))))
+
+(defun do-team-series-overs-cmp (home-team away-team &optional (series s1))
+  (do-team-series-cmp home-team away-team #'series-overs #'series-over-odds series))
+
+(defun do-team-series-unders-cmp (home-team away-team &optional (series s1))
+  (do-team-series-cmp home-team away-team #'series-unders #'series-under-odds series))
+
 ;; *******************************************
 ;; DSL Streaks
 ;;
@@ -3930,7 +3957,7 @@
 			  (t (-= stake my-stake)))) ; odds are equal - no play
 
 	  (format t "~%~% ~a " (csv-league-name league))
-	  (format t "~% Stake : £~,2f  ~%   Underdogs  : £~,2f (~,2f%)  ~%   Favourites : £~,2f (~,2f%)  ~%   Draws      : £~,2f (~,2f%)"
+	  (format t "~% Stake : £~,2f ~20t Underdogs  : £~,2f (~,2f%) ~55t Favourites : £~,2f (~,2f%) ~92t Draws : £~,2f (~,2f%)"
 			  stake
 			  under-wins (calc-percent stake under-wins)
 			  fav-wins (calc-percent stake fav-wins)
@@ -3938,7 +3965,7 @@
 
 
 (defun do-favourites2 (&key (my-stake 1) (udog-odds 2.8))
-  "Bet on underdogs for all games where underdog 1X2 odds <= UDOG-ODDS"
+  "Bet on underdogs for all games where underdog 1X2 odds <= UDOG-ODDS - not much use because 1X2 odds will be much higher than DNB"
   (dolist (league *leagues*)
 	(let ((stake 0)
 		  (fav-wins 0)
@@ -3948,24 +3975,22 @@
 		(+= stake my-stake)
 		(cond ((string-equal (result game) "D")
 			   (+= draw-wins (* my-stake (draw-odds game))))
-			  ((and ;(< (home-odds game) 2) ; home favourites
-				(<= (away-odds game) udog-odds)
-				(< (home-odds game)
-				   (away-odds game)))
+			  ((and (< (home-odds game) ; home favourites
+					   (away-odds game))
+					(<= (away-odds game) udog-odds))
 			   (if (string-equal (result game) "H")
 				   (+= fav-wins (* my-stake (home-odds game)))
 				   (+= under-wins (* my-stake (away-odds game)))))
-			  ((and ;(< (away-odds game) 2) ; away favourites
-				(<= (home-odds game) udog-odds)
-				(< (away-odds game)
-				   (home-odds game)))
+			  ((and (< (away-odds game) ; away favourites
+					   (home-odds game))
+					(<= (home-odds game) udog-odds))
 			   (if (string-equal (result game) "A")
 				   (+= fav-wins (* my-stake (away-odds game)))
 				   (+= under-wins (* my-stake (home-odds game)))))
 			  (t (-= stake my-stake)))) ; odds are equal - no play
 
 	  (format t "~%~% ~a " (csv-league-name league))
-	  (format t "~% Stake : £~,2f  ~%   Underdogs  : £~,2f (~,2f%)  ~%   Favourites : £~,2f (~,2f%)  ~%   Draws      : £~,2f (~,2f%)"
+	  (format t "~% Stake : £~,2f ~20t Underdogs  : £~,2f (~,2f%) ~55t Favourites : £~,2f (~,2f%) ~92t Draws : £~,2f (~,2f%)"
 			  stake
 			  under-wins (calc-percent stake under-wins)
 			  fav-wins (calc-percent stake fav-wins)
@@ -3982,6 +4007,24 @@
 		   (string-equal (result game) "A"))
 	  (and (< (away-odds game) (home-odds game))
 		   (string-equal (result game) "H"))))
+
+(defun fav-under-wins-by-league ()
+  (labels ((inner (league fav-wins udog-wins games)
+			 (mapcar #'(lambda (game)
+						 (incf games)
+						 (cond ((fav-win game)
+								(incf fav-wins))
+							   ((udog-win game)
+								(incf udog-wins))
+							   (t )))
+					 (get-league (csv-filename league)))
+			 (format t "~%~%~a :"  (csv-league-name league))
+			 (format t "~%Games : ~a" games)
+			 (format t "~20t Favourite Wins : ~a (~,2f%)" fav-wins (calc-percent games fav-wins))
+			 (format t "~54t Underdog Wins  : ~a (~,2f%)" udog-wins (calc-percent games udog-wins))))
+
+	(dolist (league *leagues*)
+	  (inner league 0 0 0))))
 
 ;; ***************************************************************
 ;; DSL
@@ -4059,8 +4102,9 @@
 
 (defun export-all ()
   (let ((switch-funcs `(("UK" ,#'switch-uk)
-;						("Euro" ,#'switch-euro)
-						("Summer" ,#'switch-summer))))
+						("Euro" ,#'switch-euro)
+;						("Summer" ,#'switch-summer)
+						)))
 	(dolist (switch-pair switch-funcs)
 	  (destructuring-bind (country switch-fn) switch-pair
 		(format t "~%~%Switching to ~a~%..." country)
