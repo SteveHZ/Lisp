@@ -3232,3 +3232,194 @@
 				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
 			*fixtures*)
 	(print-game-odds (do-odds :games my-expects))))
+
+
+(defun do-series-old (s games-fn result-fn odds-fn)
+  "Returns a list of all teams sorted by their returns using series S given the 
+   games returned by GAMES-FN which match results from RESULT-FN at odds ODDS-FN"
+  
+  (let ((my-list nil))
+	(with-all-teams (team *leagues*)
+	  (let ((stake 0)
+			(returns 0)
+			(result ""))
+		(series-reset s)
+		(dolist (game (funcall games-fn team))
+		  (let ((current (series-current s)))
+			(+= stake current)
+			(cond ((funcall result-fn team game)
+				   (+= returns (* current (funcall odds-fn team game)))
+				   (setf result "W"))
+				  (t (setf result "L")))
+			(series-update s result)))
+		
+		(when (> stake 0)
+		  (push (list (string-upcase (csv-filename league))
+					  team
+					  stake
+					  (format nil "~6,2f" returns)
+					  (calc-percent stake returns))
+				my-list))))
+
+	(sort my-list #'> :key #'fifth)))
+	
+(defun do-team-series-calc-old (team s games-fn result-fn odds-fn)
+  "Returns details of a TEAM with series S, using games returned from GAMES-FN
+   which match RESULT-FN at odds ODDS-FN"
+  
+  (let ((my-list nil)
+		(stake 0)
+		(returns 0)
+		(result ""))
+
+	(series-reset s)
+	(dolist (game (funcall games-fn team))
+	  (let ((current (series-current s)))
+		(+= stake current)
+		(cond ((funcall result-fn team game)
+			   (+= returns (* current (funcall odds-fn team game)))
+			   (setf result "W"))
+			  (t (setf result "L")))
+		(series-update s result)
+		(push (list (date game) (home-team game) (away-team game)
+					current result
+					(home-odds game) (draw-odds game) (away-odds game)
+					(over-odds game) (under-odds game)
+ 					stake returns)
+			  my-list)))
+
+	(values (reverse my-list)
+			stake
+			returns)))
+			
+(defun do-home-away-series-old (s games-fn home-result-fn away-result-fn
+							&optional (home-odds-fn #'summer-ou-odds)
+									  (away-odds-fn #'summer-ou-odds))
+  "Returns a list of all teams sorted by their returns using series S given the 
+   games returned by GAMES-FN which match results from HOME-RESULT-FN at odds HOME-ODDS-FN
+   and AWAY-RESULT-FN at odds AWAY-ODDS-FN to enable backing either home-overs and away-unders
+   or away-overs and home-unders"
+  
+  (let ((my-list nil))
+	(with-all-teams (team *leagues*)
+	  (let ((stake 0)
+			(returns 0)
+			(result ""))
+		(series-reset s)
+		(dolist (game (funcall games-fn team))
+		  (let ((current (series-current s)))
+			(+= stake current)
+			(cond ((is-home team game)
+				   (cond ((funcall home-result-fn team game)
+						  (+= returns (* current (funcall home-odds-fn team game)))
+						  (setf result "W"))
+						 (t (setf result "L"))))
+				  (t (cond ((funcall away-result-fn team game)
+							(+= returns (* current (funcall away-odds-fn team game)))
+							(setf result "W"))
+						   (t (setf result "L")))))
+			(series-update s result)))
+		
+		(when (> stake 0)
+		  (push (list (string-upcase (csv-filename league))
+					  team
+					  stake
+					  (format nil "~6,2f" returns)
+					  (calc-percent stake returns))
+				my-list))))
+
+	(sort my-list #'> :key #'fifth)))
+	
+(defun calc-team-series-old (team series games-fn result-fn odds-fn)
+  "Adapted from do-team-series, calculates returns of a TEAM with series S,
+   using games returned from GAMES-FN which match RESULT-FN at odds ODDS-FN"
+  
+  (let ((stake 0)
+		(returns 0)
+		(result ""))
+	(series-reset series)
+	
+	(dolist (game (funcall games-fn team))
+	  (let ((current (series-current series)))
+		(+= stake current)
+		(cond ((funcall result-fn team game)
+			   (+= returns (* current (funcall odds-fn team game)))
+			   (setf result "W"))
+			  (t (setf result "L")))
+		(series-update series result)))
+	(values stake returns)))
+	
+(defun do-team-over-under-series-calc-old (team s home-result-fn home-odds-fn away-result-fn away-odds-fn)
+  "Returns details of a TEAM with series S, using games returned from GAMES-FN
+   which match RESULT-FN at odds ODDS-FN"
+  
+  (let ((my-list nil)
+		(stake 0)
+		(returns 0)
+		(result ""))
+
+	(series-reset s)
+	(dolist (game (home-aways team))
+	  (let ((current (series-current s)))
+		(+= stake current)
+		(cond ((is-home team game)
+			   (cond ((funcall home-result-fn team game)
+					  (+= returns (* current (funcall home-odds-fn team game)))
+					  (setf result "W"))
+					 (t (setf result "L"))))
+			  (t (cond ((funcall away-result-fn team game)
+						(+= returns (* current (funcall away-odds-fn team game)))
+						(setf result "W"))
+					   (t (setf result "L")))))
+		
+		(series-update s result)
+		(push (list (date game) (home-team game) (away-team game)
+					current result
+					(home-odds game) (draw-odds game) (away-odds game)
+					(over-odds game) (under-odds game)
+ 					stake returns)
+			  my-list)))
+	
+	(values (reverse my-list)
+			stake
+			returns)))
+			
+(defun calc-new-stake-xx (series-amount odds)
+  (ceiling (get-new-stake series-amount odds)))
+  
+  
+(defun make-23-series (my-list)
+  (let ((idx 0)
+		(wins 0))
+	
+	#'(lambda (&optional (result ""))
+		(labels ((reset-series ()
+				   (setf idx 0)
+				   (setf wins 0)))
+
+		  (cond ((string-equal result "R")
+				 (reset-series))
+
+				((string-equal result "")
+				 (nth idx my-list))
+				
+				((= idx 0)
+				 (when (string-equal result "W")
+				   (+= wins 2))
+				 (if (> wins 2)
+					 (reset-series)
+					 (incf idx)))
+
+				((string-equal result "W")
+				 (+= wins 2)
+				 (if (> wins 2)
+					 (reset-series)
+					 (decf idx)))
+				
+				(t (incf idx)
+				   (when (> wins 0)
+					 (-= wins 2))))
+
+		  (when (null (nth idx my-list))
+			(reset-series))
+		  (nth idx my-list)))))

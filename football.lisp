@@ -1701,7 +1701,9 @@
 	 (/ 1 (1- odds))))
 
 (defun calc-new-stake (series-amount odds)
-  (ceiling (get-new-stake series-amount odds)))
+  (if (>= odds 2)
+	  series-amount
+	  (ceiling (get-new-stake series-amount odds))))
 
 (defun calc-stake (series-amount odds)
   (let* ((new-stake (calc-new-stake series-amount odds))
@@ -1753,9 +1755,9 @@
                         (inner wanted (rest src))))))
       (inner wanted-list src-list))))
 
-(defun data-clean (cell)
+(defun data-clean (cell &optional (value "2"))     ; value "1" causes division-by-zero errors in calc-new-stake ffs
   (let ((temp (ppcre:regex-replace "'" cell "")))  ; remove apostrophe in Nott'm Forest
-    (ppcre:regex-replace "^$" temp "1")))          ; fill in any blank cells
+    (ppcre:regex-replace "^$" temp value)))        ; fill in any blank cells
 
 (defun transform-csv (file-from file-to columns)
   "Convert csv file FILE-FROM to new file FILE-TO only showing required columns from COLUMNS
@@ -1763,7 +1765,6 @@
 
   (let* ((data (import-csv file-from))
          (cols-list (find-header-columns columns (car data))))
-;	(format t "~%~a" (first data))
     (export-csv
      (mapcar #'(lambda (row)
                  (mapcar #'(lambda (cell)
@@ -1799,7 +1800,8 @@
 (defun update-all-csv-files ()
   (update-csv-files)
   (update-euro-csv-files)
-  (update-summer-csv-files))
+;  (update-summer-csv-files)
+  )
 
 ;; *******************************************
 ;; Date routines
@@ -2016,10 +2018,22 @@
   (setf *sorted* (safe-sort *expects*
                    #'> :key #'game-goal-diff)))
 
-(defun calc-game-odds (&key (games *expects*) )
+(defun get-league-odds (league)
+  (let ((my-list nil))
+	(mapcar #'(lambda (game)
+				(when (string-equal (game-league game) league)
+				  (push game my-list)))
+			*expects*)
+	my-list))
+
+(defun league-odds (league &key (gtlt-fn #'>)
+								(cmp-fn #'game-over-odds))
+  (print-game-odds (sort (get-league-odds league) gtlt-fn :key cmp-fn)))
+
+(defun calc-game-odds (&key (games *expects*) (size 6))
   "Calculates odds for each game from goal expectancy values"
   (dolist (game games)
-    (let ((ds (make-instance 'my-odds :size 10)))
+    (let ((ds (make-instance 'my-odds :size size)))
       (calc-game ds (game-home-goals game) (game-away-goals game))
 	  (setf (values (game-home-odds game)
 					(game-draw-odds game)
@@ -2029,9 +2043,9 @@
 			(vget-odds ds))))
   games)
 
-(defun do-odds (&key (games *expects*) (cmp-fn #'game-over-odds))
+(defun do-odds (&key (games *expects*) (cmp-fn #'game-over-odds) (size 6))
   (format t "~%")
-  (print-game-odds (safe-sort (calc-game-odds :games games) #'> :key cmp-fn)))
+  (print-game-odds (safe-sort (calc-game-odds :games games :size size) #'> :key cmp-fn)))
 
 (defun diff-ou-odds-fn (game)
   (abs (- (game-over-odds game)
@@ -2041,15 +2055,15 @@
   (abs (- (game-home-odds game)
 		  (game-away-odds game))))
 
-(defun do-diff-odds (games n diff-odds-fn)
+(defun do-diff-odds (games n diff-odds-fn cmp-fn)
   (print-game-odds (first-n n
-							(safe-sort (calc-game-odds :games games) #'> :key diff-odds-fn))))
+							(safe-sort (calc-game-odds :games games) cmp-fn :key diff-odds-fn))))
 
-(defun diff-ou-odds (&key (games *expects*) (n 20))
-  (do-diff-odds games n #'diff-ou-odds-fn))
+(defun diff-ou-odds (&key (games *expects*) (n 20) (cmp-fn #'<))
+  (do-diff-odds games n #'diff-ou-odds-fn cmp-fn))
 
-(defun diff-result-odds (&key (games *expects*) (n 20))
-  (do-diff-odds games n #'diff-result-odds-fn))
+(defun diff-result-odds (&key (games *expects*) (n 20) (cmp-fn #'<))
+  (do-diff-odds games n #'diff-result-odds-fn cmp-fn))
 
 (defun get-date-as-string (game)
   (subseq (fdate-time game) 3 8))
@@ -2062,25 +2076,25 @@
 	(+ (* 100 (parse-integer (subseq game-time 0 2)))
 	   (parse-integer (subseq game-time 3 5)))))
 
-(defun date-odds-fn (date)
+(defun date-odds-fn (date &optional (size 6))
   (let ((my-expects nil))
 	(mapcar #'(lambda (game)
 				(when (string-equal (subseq (fdate-time game) 3 8)
 									(subseq date 0 5)) ;; to allow date to be entered as either DD/MM or DD/MM/YY
 				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
 			*fixtures*)
-	(calc-game-odds :games my-expects)))
+	(calc-game-odds :games my-expects :size size)))
 
-(defun early-odds-fn (date)
+(defun early-odds-fn (date &optional (size 6))
   (let ((my-expects nil))
 	(mapcar #'(lambda (game)
 				(when (and (string-equal (get-date-as-string game) date)
 						   (< (get-time game) 1500))
 				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
 			*fixtures*)
-	(calc-game-odds :games my-expects)))
+	(calc-game-odds :games my-expects :size size)))
 
-(defun day-odds-fn (date)
+(defun day-odds-fn (date &optional (size 6))
   (let ((my-expects nil))
 	(mapcar #'(lambda (game)
 				(when (and (string-equal (get-date-as-string game) date)
@@ -2088,21 +2102,21 @@
 						   (< (get-time game) 1631))
 				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
 			*fixtures*)
-	(calc-game-odds :games my-expects)))
+	(calc-game-odds :games my-expects :size size)))
 
-(defun late-odds-fn (date)
+(defun late-odds-fn (date &optional (size 6))
   (let ((my-expects nil))
 	(mapcar #'(lambda (game)
 				(when (and (string-equal (get-date-as-string game) date)
 						   (> (get-time game) 1650))
 				  (push (do-game-expect (fleague game) (fhome game) (faway game)) my-expects)))
 			*fixtures*)
-	(calc-game-odds :games my-expects)))
+	(calc-game-odds :games my-expects :size size)))
 
 (defmacro do-odds-fn (fn-name odds-fn)
-  `(defun ,fn-name (date &key (cmp-fn #'game-over-odds))
+  `(defun ,fn-name (date &key (cmp-fn #'game-over-odds) (size 6))
 	 (print-game-odds
-	  (sort (funcall ,odds-fn date) #'> :key cmp-fn))))
+	  (sort (funcall ,odds-fn date size) #'> :key cmp-fn))))
 
 (do-odds-fn date-odds #'date-odds-fn)
 (do-odds-fn early-odds #'early-odds-fn)
@@ -2633,35 +2647,37 @@
 
 (defun make-23-series (my-list)
   (let ((idx 0)
-		(wins 0))
+		(wins 0)
+		(games 0))
 	
 	#'(lambda (&optional (result ""))
 		(labels ((reset-series ()
 				   (setf idx 0)
-				   (setf wins 0)))
+				   (setf wins 0)
+				   (setf games 0)))
 
 		  (cond ((string-equal result "R")
 				 (reset-series))
 
 				((string-equal result "")
 				 (nth idx my-list))
-				
-				((= idx 0)
-				 (when (string-equal result "W")
-				   (+= wins 2))
-				 (if (> wins 2)
-					 (reset-series)
-					 (incf idx)))
 
 				((string-equal result "W")
-				 (+= wins 2)
-				 (if (> wins 2)
-					 (reset-series)
-					 (decf idx)))
+				 (if (= idx 0)
+					 (incf idx)
+					 (decf idx))
+				 (incf wins)
+				 (incf games)
+				 (if (= wins 2)
+					 (reset-series)))
 				
-				(t (incf idx)
-				   (when (> wins 0)
-					 (decf wins))))
+				(t ;; (string-equal result "L"
+				 (incf idx)
+				 (when (= games 2)
+				   (setf games 0)
+				   (decf wins))
+				 (when (= games 1)
+				   (incf games))))
 
 		  (when (null (nth idx my-list))
 			(reset-series))
@@ -2678,10 +2694,12 @@
 (defparameter old-s3 (make-old-circular-series '(1 2 3 5) '(5 5)))
 (defparameter old-s4 (make-old-circular-series '(1 1) '(1 1)))
 
-(defparameter s1 (make-circular-series '(2 2) '(2 2)))
-(defparameter s2 (make-23-series '(2 4 6 8 10 12)))
-(defparameter s22 (make-23-series '(2 4 8 12 16 24)))
-(defparameter s3 (make-23-series '(3 6 9 12 15 18)))
+(defparameter s1 (make-circular-series '(1 1) '(1 1)))
+(defparameter s2 (make-circular-series '(2 2) '(2 2)))
+(defparameter s3 (make-circular-series '(3 3) '(3 3)))
+(defparameter s246 (make-23-series '(2 4 6 8 10 12)))
+(defparameter s248 (make-23-series '(2 4 8 12 16 24)))
+(defparameter s369 (make-23-series '(3 6 9 12 15 18)))
 (defparameter stoffo (make-short-series '(11 22 44 66 88 132)))
 
 #|
@@ -2726,10 +2744,12 @@
 			(result ""))
 		(series-reset s)
 		(dolist (game (funcall games-fn team))
-		  (let ((current (series-current s)))
-			(+= stake current)
+		  (let* ((current (series-current s))
+				 (odds (funcall odds-fn team game))
+				 (my-stake (calc-new-stake current odds)))
+			(+= stake my-stake)
 			(cond ((funcall result-fn team game)
-				   (+= returns (* current (funcall odds-fn team game)))
+				   (+= returns (* my-stake odds))
 				   (setf result "W"))
 				  (t (setf result "L")))
 			(series-update s result)))
@@ -2835,8 +2855,8 @@
 							(,stoffo "stoffo")))
 
 (defun do-home-away-series (s games-fn home-result-fn away-result-fn
-							&optional (home-odds-fn #'summer-ou-odds)
-									  (away-odds-fn #'summer-ou-odds))
+							 &optional (home-odds-fn #'summer-ou-odds)
+									   (away-odds-fn #'summer-ou-odds))
   "Returns a list of all teams sorted by their returns using series S given the 
    games returned by GAMES-FN which match results from HOME-RESULT-FN at odds HOME-ODDS-FN
    and AWAY-RESULT-FN at odds AWAY-ODDS-FN to enable backing either home-overs and away-unders
@@ -2850,16 +2870,22 @@
 		(series-reset s)
 		(dolist (game (funcall games-fn team))
 		  (let ((current (series-current s)))
-			(+= stake current)
+			
 			(cond ((is-home team game)
-				   (cond ((funcall home-result-fn team game)
-						  (+= returns (* current (funcall home-odds-fn team game)))
-						  (setf result "W"))
-						 (t (setf result "L"))))
-				  (t (cond ((funcall away-result-fn team game)
-							(+= returns (* current (funcall away-odds-fn team game)))
+				   (let* ((odds (funcall home-odds-fn team game))
+						  (my-stake (calc-new-stake current odds)))
+					 (+= stake my-stake)
+					 (cond ((funcall home-result-fn team game)
+							(+= returns (* my-stake odds))
 							(setf result "W"))
 						   (t (setf result "L")))))
+				  (t (let* ((odds (funcall away-odds-fn team game))
+							(my-stake (calc-new-stake current odds)))
+					   (+= stake my-stake)
+					   (cond ((funcall away-result-fn team game)
+							  (+= returns (* my-stake odds))
+							  (setf result "W"))
+							 (t (setf result "L"))))))
 			(series-update s result)))
 		
 		(when (> stake 0)
@@ -2951,6 +2977,7 @@
 									   #'series-ou-odds
 									   #'series-uo-odds))
 
+
 (defun series-all-table (my-list)
   (format-table t my-list
 				:column-label '("Result" "League" "Team" "Stake" "Return" "Percents")
@@ -2991,10 +3018,12 @@
 	(series-reset series)
 	
 	(dolist (game (funcall games-fn team))
-	  (let ((current (series-current series)))
-		(+= stake current)
+	  (let* ((current (series-current series))
+			 (odds (funcall odds-fn team game))
+			 (my-stake (calc-new-stake current odds)))
+		(+= stake my-stake)
 		(cond ((funcall result-fn team game)
-			   (+= returns (* current (funcall odds-fn team game)))
+			   (+= returns (* my-stake odds))
 			   (setf result "W"))
 			  (t (setf result "L")))
 		(series-update series result)))
@@ -3082,9 +3111,10 @@
   (do-all-series-calc series n series-ou-results series-ou-fns series-ou-odds-fns #'last-six))
 
 (defun do-all-result-series (series &optional (n 20))
-  "Produce a list of the best returns from all teams for each result (Win/Draw/Loss/Win-Loss/Loss-Win)"
+  "Produce a list of th;e best returns from all teams for each result (Win/Draw/Loss/Win-Loss/Loss-Win)"
   (do-all-series-table (do-all-result-series-calc series n)))
 
+;;; add home-overs, away-overs/unders etc to this - see 2696 series-ou-fns
 (defun do-all-ou-series (series &optional (n 20))
   "Produce a list of the best returns from all teams for each result (Over/Under/Over-Under/Under-Over)"
   (do-all-series-table (do-all-ou-series-calc series n)))
@@ -3186,15 +3216,17 @@
 
 	(series-reset s)
 	(dolist (game (funcall games-fn team))
-	  (let ((current (series-current s)))
-		(+= stake current)
+	  (let* ((current (series-current s))
+			 (odds (funcall odds-fn team game))
+			 (my-stake (calc-new-stake current odds)))
+		(+= stake my-stake)
 		(cond ((funcall result-fn team game)
-			   (+= returns (* current (funcall odds-fn team game)))
+			   (+= returns (* my-stake odds))
 			   (setf result "W"))
 			  (t (setf result "L")))
 		(series-update s result)
 		(push (list (date game) (home-team game) (away-team game)
-					current result
+					current my-stake result
 					(home-odds game) (draw-odds game) (away-odds game)
 					(over-odds game) (under-odds game)
  					stake returns)
@@ -3205,13 +3237,17 @@
 			returns)))
 
 (defun do-team-series (team s games-list result-fn odds-fn)
-  (format t "~67t1~73tX~79t2~88tO~94tU~99tStake~105tReturn")
+  (format t "~72t1~78tX~84t2~93tO~99tU~104tStake~109tReturn")
 
   (multiple-value-bind (my-list stake returns)
 	  (do-team-series-calc team s games-list result-fn odds-fn)
+;;	(print my-list)
 
-	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a ~60t~a  ~5,2f ~5,2f ~5,2f  : ~5,2f ~5,2f : ~6,2f ~6,2f~}~}" my-list)
-	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (calc-percent stake returns))))
+	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a ~60t~a  ~65t ~a ~5,2f ~5,2f ~5,2f  : ~5,2f ~5,2f : ~6,2f ~6,2f~}~}" my-list)
+	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (calc-percent stake returns))
+;;	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a ~60t~a  ~5,2f ~5,2f ~5,2f  : ~5,2f ~5,2f : ~6,2f ~6,2f~}~}" my-list)
+;;	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (calc-percent stake returns))
+	))
 
 (defun do-team-series-wins (team series)
   (do-team-series team series #'home-aways #'home-away-win-result #'home-away-odds))
@@ -3254,42 +3290,46 @@
   
   (let ((my-list nil)
 		(stake 0)
+		(my-stake 0)
 		(returns 0)
 		(result ""))
 
 	(series-reset s)
 	(dolist (game (home-aways team))
 	  (let ((current (series-current s)))
-		(+= stake current)
 		(cond ((is-home team game)
-			   (cond ((funcall home-result-fn team game)
-					  (+= returns (* current (funcall home-odds-fn team game)))
-					  (setf result "W"))
-					 (t (setf result "L"))))
-			  (t (cond ((funcall away-result-fn team game)
-						(+= returns (* current (funcall away-odds-fn team game)))
+			   (let ((odds (funcall home-odds-fn team game)))
+				 (setf my-stake (calc-new-stake current odds))
+				 (+= stake my-stake)
+				 (cond ((funcall home-result-fn team game)
+						(+= returns (* my-stake odds))
 						(setf result "W"))
 					   (t (setf result "L")))))
-		
+			  (t (let ((odds (funcall away-odds-fn team game)))
+				   (setf my-stake (calc-new-stake current odds))
+				   (+= stake my-stake)
+				   (cond ((funcall away-result-fn team game)
+						  (+= returns (* my-stake odds))
+						  (setf result "W"))
+						 (t (setf result "L"))))))
 		(series-update s result)
 		(push (list (date game) (home-team game) (away-team game)
-					current result
+					current my-stake result
 					(home-odds game) (draw-odds game) (away-odds game)
 					(over-odds game) (under-odds game)
  					stake returns)
 			  my-list)))
-	
 	(values (reverse my-list)
 			stake
 			returns)))
 
 (defun do-ou-team-series (team s home-result-fn home-odds-fn away-result-fn away-odds-fn)
-  (format t "~65t1~71tX~77t2~86tO~92tU~97tStake~104tReturn")
+  (format t "~71t1~77tX~82t2~92tO~98tU~103tStake~110tReturn")
 
   (multiple-value-bind (my-list stake returns)
 	  (do-team-over-under-series-calc team s home-result-fn home-odds-fn away-result-fn away-odds-fn)
 
-	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a ~60t~a  ~5,2f ~5,2f ~5,2f  : ~5,2f ~5,2f : ~6,2f ~6,2f~}~}" my-list)
+	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a ~60t~a  ~65t~a ~5,2f ~5,2f ~5,2f  : ~5,2f ~5,2f : ~6,2f ~6,2f~}~}" my-list)
 	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (* (/ returns stake) 100))))
 
 (defun do-team-series-over-unders (team s)
@@ -3326,7 +3366,8 @@
 (defun do-team-series-unders-cmp (home-team away-team &optional (series s1))
   (do-team-series-cmp home-team away-team #'series-unders #'series-under-odds series))
 
-;; *******************************************
+;; ****************************************
+
 ;; DSL Streaks
 ;;
 
@@ -3675,8 +3716,8 @@
 		   (total-games 0))
 	  (dolist (game games)
 		(incf total-games)
-		(if (funcall result-fn game n)
-			(incf count)))
+		(when (funcall result-fn game n)
+		  (incf count)))
 	  (format t "~%~a ~5t: Wins : ~3d Games : ~3d Percent : ~5,2f%"
 			  (string-upcase filename) count total-games (calc-percent total-games count)))))
 
