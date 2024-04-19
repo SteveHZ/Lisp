@@ -148,7 +148,10 @@
 					 (setf games 0)
 					 (decf wins))
 				   (when (= games 1)
-					 (incf games))))
+					 (incf games))
+
+				   
+				   ))
 
 		  (when (null (nth idx my-list))
 			(reset-series))
@@ -156,37 +159,99 @@
 
 (defparameter s246t (make-23-series-test '(2 4 6 8 10 12)))
 
-#|
-(when (> wins 0)
-  (decf wins 2)
-  (format t "~%idx = ~a wins = ~a" idx wins))
+;;; ========================================================================================
+;;; ========================================================================================
+;;; ========================================================================================
+
+(defun count-season (games-fn test-fn)
+  "Returns a list of all teams sorted by the games returned by FN
+   which match the result TEST-FN"
+
+  (labels ((inner (games count)
+			 (cond ((null games) count)
+				   ((funcall test-fn (car games))
+					(inner (rest games) (1+ count)))
+				   (t (inner (rest games) count)))))
+
+	(let ((my-list nil))
+	  (with-all-teams (team *leagues*)
+		(let* ((games (funcall games-fn team))
+			   (count (inner games 0)))
+ 		  (push (list team
+					  count
+ 					  (length games)
+					  (calc-percent (length games) count))
+				my-list)))
+
+	  (sort my-list #'> :key #'fourth))))
+
+(defun count-season-n (ngames games-fn test-fn)
+  "Returns a list of all teams sorted by the games returned by FN
+   which match the result TEST-FN"
+
+  (labels ((inner (games count)
+			 (cond ((null games) count)
+				   ((funcall test-fn (car games))
+					(inner (rest games) (1+ count)))
+				   (t (inner (rest games) count)))))
+
+	(let ((my-list nil))
+	  (with-all-teams (team *leagues*)
+		(let* ((games (funcall games-fn team ngames))
+			   (count (inner games 0)))
+ 		  (push (list team
+					  count
+ 					  (length games)
+					  (calc-percent (length games) count))
+				my-list)))
+
+	  (sort my-list #'> :key #'fourth))))
+
+;;; ========================================================================================
+
+(defun count-ou (games-fn test-fn n goals)
+  (count-games-table
+   (first-n n (count-season
+			   games-fn
+			   #'(lambda (game)
+				   (funcall test-fn game goals))))))
+
+(defun count-ou-n (games-fn test-fn n goals ngames)
+  (count-games-table
+   (first-n n (count-season-n
+			   ngames
+			   games-fn
+			   #'(lambda (game)
+				   (funcall test-fn game goals))))))
+
+;;; ========================================================================================
+(defun count-overs (&key (n 10) (goals 2.5))
+  (count-ou #'home-aways #'is-over n goals))
+(defun count-home-overs (&key (n 10) (goals 2.5))
+  (count-ou #'homes #'is-over n goals))
+(defun count-away-overs (&key (n 10) (goals 2.5))
+  (count-ou #'aways #'is-over n goals))
+
+(defun count-overs-n (&key (n 10) (goals 2.5) (ngames 6))
+  (count-ou-n #'last-six #'is-over n goals ngames))
+(defun count-home-overs (&key (n 10) (goals 2.5) (ngames 6))
+  (count-ou-n #'last-six-homes #'is-over n goals ngames))
+(defun count-away-overs (&key (n 10) (goals 2.5) (ngames 6)) 
+  (count-ou-n #'last-six-aways #'is-over n goals ngames))
+
+;;; ========================================================================================
+(defun count-unders (&key (n 10) (goals 2.5))
+  (count-ou #'home-aways #'is-under n goals))
+(defun count-home-unders (&key (n 10) (goals 2.5))
+  (count-ou #'homes #'is-under n goals))
+(defun count-away-unders (&key (n 10) (goals 2.5))
+  (count-ou #'aways #'is-under n goals))
 
 
-((= idx 0)
-(when (string-equal result "W")
-(format t "~%Win 0 : idx = ~a wins = ~a games = ~a" idx wins games)
-(incf wins)
-(incf games))
+(defun count-unders-n (&key (n 10) (goals 2.5) (ngames 6))
+  (count-ou-n #'last-six #'is-under n goals ngames))
+(defun count-home-unders (&key (n 10) (goals 2.5) (ngames 6))
+  (count-ou-n #'last-six-homes #'is-under n goals ngames))
+(defun count-away-unders (&key (n 10) (goals 2.5) (ngames 6))
+  (count-ou-n #'last-six-aways #'is-under n goals ngames))
 
-
-(if (>= games (+ wins 2))
-(decf idx)
-(incf idx))
-(format t "~%Win 0 : idx = ~a wins = ~a games = ~a" idx wins games)
-(when (>= wins 2)
-(reset-series)
-)
-)
-
-
-(when (= games 2)
-(reset-series))
-(when (> games 0)
-(decf games))
-
-
-
-(when (> wins 0)
-(decf wins)
-(format t "~%Lost : idx = ~a wins = ~a games = ~a" idx wins games))
-|#

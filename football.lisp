@@ -1,3 +1,4 @@
+
 ;; football.lisp May 2020
 
 (defpackage :football
@@ -807,15 +808,19 @@
 
 (defun say-game-over-stats (home-team away-team)
   (multiple-value-bind (overs games) (get-team-over-stats home-team #'last-six-homes)
-	(format t "~%Home Team : ~a from ~a = ~,2f %" overs games (calc-percent games overs)))
+	(format t "~%Home Team : ~a : ~a from ~a = ~,2f %~%" home-team overs games (calc-percent games overs))
+	(say-last-six-homes home-team))
   (multiple-value-bind (overs games) (get-team-over-stats away-team #'last-six-aways)
-	(format t "~%Away Team : ~a from ~a = ~,2f %" overs games (calc-percent games overs))))
+	(format t "~%~%Away Team : ~a : ~a from ~a = ~,2f %~%" away-team overs games (calc-percent games overs))
+	(say-last-six-aways away-team)))
 
 (defun say-game-under-stats (home-team away-team)
   (multiple-value-bind (unders games) (get-team-under-stats home-team #'last-six-homes)
-	(format t "~%Home Team : ~a from ~a = ~,2f %" unders games (calc-percent games unders)))
+	(format t "~%Home Team : ~a : ~a from ~a = ~,2f %~%" home-team unders games (calc-percent games unders))
+	(say-last-six-homes home-team))
   (multiple-value-bind (unders games) (get-team-under-stats away-team #'last-six-aways)
-	(format t "~%Away Team : ~a from ~a = ~,2f %" unders games (calc-percent games unders))))
+	(format t "~%~%Away Team : ~a : ~a from ~a = ~,2f %~%" away-team unders games (calc-percent games unders))
+	(say-last-six-aways away-team)))
 
 ;; **************************************************************
 ;;
@@ -2059,10 +2064,10 @@
   (print-game-odds (first-n n
 							(safe-sort (calc-game-odds :games games) cmp-fn :key diff-odds-fn))))
 
-(defun diff-ou-odds (&key (games *expects*) (n 20) (cmp-fn #'<))
+(defun diff-ou-odds (&key (games *expects*) (n 20) (cmp-fn #'>))
   (do-diff-odds games n #'diff-ou-odds-fn cmp-fn))
 
-(defun diff-result-odds (&key (games *expects*) (n 20) (cmp-fn #'<))
+(defun diff-result-odds (&key (games *expects*) (n 20) (cmp-fn #'>))
   (do-diff-odds games n #'diff-result-odds-fn cmp-fn))
 
 (defun get-date-as-string (game)
@@ -2524,6 +2529,17 @@
 			   games-fn
 			   #'(lambda (game)
 				   (funcall test-fn game goals))))))
+#|
+;;SOMETING WRONG HERE
+(count-games-table (first-n 20 (count-season
+								#'aways
+								#'(lambda (game)
+									(funcall #'is-over game 2.5)))))
+
+works but count-away-overs only gives last-six-away games ???
+PROBLEM IS IN in-progress.lisp
+try renaming all relevant fns as ...2 to try to isolate the problem
+|#
 
 (defun count-overs (&key (n 10) (goals 2.5))
   (count-ou #'home-aways #'is-over n goals))
@@ -2689,40 +2705,21 @@
 	(my-while (string-ne "X" (input in ">"))
 	  (print (funcall series in)))))
 
-(defparameter old-s1 (make-old-circular-series '(1 2 3 4 5 6) '(5 4 3 4 5 6)))
-(defparameter old-s2 (make-old-circular-series '(1 2 3 5 8 12) '(15 15)))
-(defparameter old-s3 (make-old-circular-series '(1 2 3 5) '(5 5)))
-(defparameter old-s4 (make-old-circular-series '(1 1) '(1 1)))
-
 (defparameter s1 (make-circular-series '(1 1) '(1 1)))
 (defparameter s2 (make-circular-series '(2 2) '(2 2)))
 (defparameter s3 (make-circular-series '(3 3) '(3 3)))
+
 (defparameter s246 (make-23-series '(2 4 6 8 10 12)))
 (defparameter s248 (make-23-series '(2 4 8 12 16 24)))
 (defparameter s369 (make-23-series '(3 6 9 12 15 18)))
 (defparameter stoffo (make-short-series '(11 22 44 66 88 132)))
 
-#|
-(defparameter s1 (make-short-series '(1 2 2 3 3 5 5)))
-(defparameter s2 (make-short-series '(2 2 3 3 5 5 7 7)))
-(defparameter s3 (make-long-series '(2 2 2 3 3 3 5 5 5 8 8 8)))
-(defparameter s4 (make-long-series '(2 2 4 4 4 6 6 6 8 8 8)))
-(defparameter s5 (make-circular-series '(1 2 2 3 3 5 5) '(3 4 5)))
+;; do something with these? - other old series were useless :-)
+;; perhaps keep s1 but replace s2 and s3 with same numbers as 246/248 but would be different series ?
+;; maybe keep s2 but above idea is good even so
+
 (defparameter s6 (make-short-series '(2 3 4 5 6 8)))
 (defparameter s62 (make-short-series '(2 3 5 6 8 10)))
-
-(defparameter st1 (make-streak-series '(1 1 1)))
-(defparameter st3 (make-streak-series '(3 2 1)))
-(defparameter st4 (make-streak-series '(4 2 1)))
-(defparameter st5 (make-streak-series '(5 3 1)))
-(defparameter st10 (make-streak-series '(10 6 2)))
-
-(defparameter s23 (make-23-series '(1 2 3 5 8 13 21 34)))
-(defparameter s24 (make-23-series '(1 2 3 5 8 13)))
-(defparameter s25 (make-23-series '(2 3 5 6 8 10)))
-(defparameter s232 (make-23-series '(2 2 3 5 8 13 21 34)))
-(defparameter s26 (make-23-series '(2 4 6 8 10 12)))
-|#
 
 (defun series-current (series)
   (funcall series))
@@ -2764,6 +2761,11 @@
 
 	(sort my-list #'> :key #'fifth)))
 
+(defun series-table (n my-list)
+  (format-table t (first-n n my-list)
+				:column-label '("League" "Team" "Stake" "Return" "Percents")
+				:column-align '(:center :left :center :center :center)))
+
 (defun do-series-wins-calc (series)
   (do-series series #'home-aways #'home-away-win-result #'home-away-odds))
 (defun do-series-home-wins-calc (series)
@@ -2803,11 +2805,6 @@
   (do-series series #'last-six #'series-overs #'series-over-odds))
 (defun do-series-last-six-unders-calc (series)
   (do-series series #'last-six #'series-unders #'series-under-odds))
-
-(defun series-table (n my-list)
-  (format-table t (first-n n my-list)
-				:column-label '("League" "Team" "Stake" "Return" "Percents")
-				:column-align '(:center :left :center :center :center)))
 
 (defun do-series-wins (series &optional (n 10))
   (series-table n (do-series-wins-calc series)))
@@ -2849,14 +2846,15 @@
 (defun do-series-last-six-unders (series &optional (n 10))
   (series-table n (do-series-last-six-unders-calc series)))
 
+
 (defparameter series-list `((,s1 "s1")
-							(,s2 "s2")
-							(,s3 "s3")
+							(,s246 "s246")
+							(,s369 "s369")
 							(,stoffo "stoffo")))
 
 (defun do-home-away-series (s games-fn home-result-fn away-result-fn
-							 &optional (home-odds-fn #'summer-ou-odds)
-									   (away-odds-fn #'summer-ou-odds))
+							&optional (home-odds-fn #'summer-ou-odds)
+									  (away-odds-fn #'summer-ou-odds))
   "Returns a list of all teams sorted by their returns using series S given the 
    games returned by GAMES-FN which match results from HOME-RESULT-FN at odds HOME-ODDS-FN
    and AWAY-RESULT-FN at odds AWAY-ODDS-FN to enable backing either home-overs and away-unders
@@ -3241,13 +3239,9 @@
 
   (multiple-value-bind (my-list stake returns)
 	  (do-team-series-calc team s games-list result-fn odds-fn)
-;;	(print my-list)
 
 	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a ~60t~a  ~65t ~a ~5,2f ~5,2f ~5,2f  : ~5,2f ~5,2f : ~6,2f ~6,2f~}~}" my-list)
-	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (calc-percent stake returns))
-;;	(format t "~{~{~%~a  ~a ~30t v ~a ~55t~a ~60t~a  ~5,2f ~5,2f ~5,2f  : ~5,2f ~5,2f : ~6,2f ~6,2f~}~}" my-list)
-;;	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (calc-percent stake returns))
-	))
+	(format t "~%~%Stake  : £~,2f~%Return : £~,2f~%Percentage : ~,2f%" stake returns (calc-percent stake returns))))
 
 (defun do-team-series-wins (team series)
   (do-team-series team series #'home-aways #'home-away-win-result #'home-away-odds))
