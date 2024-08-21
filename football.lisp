@@ -27,6 +27,7 @@
     ("e2" "League One")
     ("e3" "League Two")
     ("ec" "Conference")
+	
     ("sc0" "Scots Premier")
     ("sc1" "Scots Championship")
     ("sc2" "Scots League One")
@@ -43,10 +44,12 @@
 	("nor" "Norwegian League")
 	("fin" "Finnish League")
 	("roi" "Irish League")
-	("mls" "American League")))
+;	("mls" "American League")
+	))
 
 (defparameter *rugby-leagues*
-  '(("sl" "Super League")))
+  '(("SL" "Super League")
+	("NRL" "Aussie League")))
 
 (proclaim '(inline csv-filename csv-league-name league-assoc))
 (defun csv-filename (league) (first league))
@@ -69,11 +72,11 @@
 (defparameter *csv-cols* *uk-csv-cols*)
 (defparameter *teams-file* *uk-teams-file*)
 
-;;(defparameter *leagues* *summer-leagues*)
-;;(defparameter *fixtures-file* *summer-fixtures-file*)
-;;(defparameter *csv-cols* *summer-csv-cols*)
-;;(defparameter *teams-file* *summer-teams-file*)
-;;(defparameter *leagues* (append *uk-leagues* *summer-leagues*))
+(defparameter *leagues* *summer-leagues*)
+(defparameter *fixtures-file* *summer-fixtures-file*)
+(defparameter *csv-cols* *summer-csv-cols*)
+(defparameter *teams-file* *summer-teams-file*)
+(defparameter *leagues* (append *uk-leagues* *summer-leagues*))
 
 (defvar *ht-stats* (make-hash-table :test #'equal))
 (defvar *ht-league-stats* (make-hash-table :test #'equal))
@@ -598,8 +601,6 @@
 				(format t "~%~a Away Wins : ~3d ~$%" league-name away-wins (calc-percent num-games away-wins))
 				(format t "~%~a Draws     : ~3d ~$%" league-name draws (calc-percent num-games draws))))
 		  *leagues*))
-
-
 
 (defun lengths (args)
   "Return the a list of lengths of each list in a given list of lists
@@ -1276,7 +1277,8 @@
 		   ,text ,@body))
 
 (defun get-home-away-stats-detail (team)
-  (with-stats-format "All"	(length (home-aways team))
+  (with-stats-format "All"
+	(length (home-aways team))
 	(win-returns team) (win-percentage-return team)
 	(loss-returns team) (loss-percentage-return team)
 	(draw-returns team) (draw-percentage-return team)
@@ -1311,16 +1313,6 @@
   (print-header)
   (get-away-stats-detail team))
 
-(defun get-ou-stats (team)
-  (let ((ou-returns (over-under-returns team))
-		(uo-returns (under-over-returns team))
-		(games (total-games team)))
-
-	(format t "~%~%Over-Unders : £~5,2f~5,2f%"
-			ou-returns (/ ou-returns games ))
-	(format t "~%Under-Overs : £~5,2f~5,2f%"
-			uo-returns (/ uo-returns games))))
-
 (defun get-win-loss-stats (team)
   (let ((wl-returns (win-loss-returns team))
 		(lw-returns (loss-win-returns team))
@@ -1330,6 +1322,16 @@
 			wl-returns (/ wl-returns games))
 	(format t "~%Loss-Win    : £~5,2f~5,2f%"
 			lw-returns (/ lw-returns games))))
+
+(defun get-ou-stats (team)
+  (let ((ou-returns (over-under-returns team))
+		(uo-returns (under-over-returns team))
+		(games (total-games team)))
+
+	(format t "~%~%Over-Unders : £~5,2f~5,2f%"
+			ou-returns (/ ou-returns games ))
+	(format t "~%Under-Overs : £~5,2f~5,2f%"
+			uo-returns (/ uo-returns games))))
 
 (defun say-return-stats (team)
   "Show return stats for given TEAM"
@@ -1517,6 +1519,9 @@
   (setf *db* nil)
   (dolist (league *leagues*)
     (setf *db* (append *db* (load-league-data league)))))
+
+(defun load-rugby ()
+  (import-csv "c:/mine/lisp/data/rugby2024.csv"))
 
 (defun import-rugby-csv ()
   (setf *db* nil)
@@ -1803,10 +1808,9 @@
 				"c:/mine/lisp/data"))
 
 (defun update-all-csv-files ()
-  (update-csv-files)
-  (update-euro-csv-files)
-;  (update-summer-csv-files)
-  )
+;  (update-csv-files)
+;  (update-euro-csv-files)
+  (update-summer-csv-files))
 
 ;; *******************************************
 ;; Date routines
@@ -2529,17 +2533,6 @@
 			   games-fn
 			   #'(lambda (game)
 				   (funcall test-fn game goals))))))
-#|
-;;SOMETING WRONG HERE
-(count-games-table (first-n 20 (count-season
-								#'aways
-								#'(lambda (game)
-									(funcall #'is-over game 2.5)))))
-
-works but count-away-overs only gives last-six-away games ???
-PROBLEM IS IN in-progress.lisp
-try renaming all relevant fns as ...2 to try to isolate the problem
-|#
 
 (defun count-overs (&key (n 10) (goals 2.5))
   (count-ou #'home-aways #'is-over n goals))
@@ -2713,13 +2706,6 @@ try renaming all relevant fns as ...2 to try to isolate the problem
 (defparameter s248 (make-23-series '(2 4 8 12 16 24)))
 (defparameter s369 (make-23-series '(3 6 9 12 15 18)))
 (defparameter stoffo (make-short-series '(11 22 44 66 88 132)))
-
-;; do something with these? - other old series were useless :-)
-;; perhaps keep s1 but replace s2 and s3 with same numbers as 246/248 but would be different series ?
-;; maybe keep s2 but above idea is good even so
-
-(defparameter s6 (make-short-series '(2 3 4 5 6 8)))
-(defparameter s62 (make-short-series '(2 3 5 6 8 10)))
 
 (defun series-current (series)
   (funcall series))
@@ -3589,8 +3575,8 @@ try renaming all relevant fns as ...2 to try to isolate the problem
   (get-streak-games))
 
 (defun start++ ()
-;  (update-summer-csv-files)
   (update-csv-files)
+  (update-summer-csv-files)
   (start+)
   (export-returns)
 ;  (export-streaks st5)
@@ -4138,7 +4124,7 @@ try renaming all relevant fns as ...2 to try to isolate the problem
 (defun export-all ()
   (let ((switch-funcs `(("UK" ,#'switch-uk)
 						("Euro" ,#'switch-euro)
-;						("Summer" ,#'switch-summer)
+						("Summer" ,#'switch-summer)
 						)))
 	(dolist (switch-pair switch-funcs)
 	  (destructuring-bind (country switch-fn) switch-pair
@@ -4224,32 +4210,64 @@ try renaming all relevant fns as ...2 to try to isolate the problem
 ;; ***************************************************************
 ;; DSL
 ;; Cricket
+;; To copy to cl-repl on phone, copy to lisp/zap-phone.lisp, then to Dropbox/org/cl-repl.org
 
-;; Cricket runs per over
-(defun rpo-old (score overs)
-  (format t "~,2f" (/ score overs)))
+;; Helper functions
 
 (defun rpo-from-deliveries (score delivs)
   (* 6 (/ score delivs)))
 
-;; Find the equivalent runs-per-6 ball over
-;; score for a hundred score
-(defun hundred (score &optional (delivs 100))
-  (format t "~,2f" (rpo-from-deliveries score delivs)))
+;; (split-deliveries 5.3) returns (values 5 3)
 
-;; Find runs per over from part-over (eg 5.3 overs)
 (defun split-deliveries (overs)
   (multiple-value-bind (ovs delivs) (floor overs)
 	(values ovs (round (* 10 delivs)))))
+
+;; (get-deliveries 5.3) returns 33
 
 (defun get-deliveries (overs)
   (multiple-value-bind (ovs delivs) (split-deliveries overs)
 	(+ (* 6 ovs)
 	   delivs)))
 
+(defun runs-per-ball (runs-per-over)
+  (/ runs-per-over 6))
+
+(defun calc-runline (score overs runline-overs)
+  (* (get-deliveries runline-overs)
+	 (runs-per-ball (rpo-from-deliveries score (get-deliveries overs)))))
+
+;; Find runs per over from either full or part overs (eg 5.3 overs)
+
+(defun get-rpo (score overs)
+  (rpo-from-deliveries score (get-deliveries overs)))
+
 (defun rpo (score overs)
-  (let ((delivs (get-deliveries overs)))
-	(format t "~,2f" (rpo-from-deliveries score delivs))))
+ (format t "~,2f" (get-rpo score overs)))
+
+(defun overs-left (overs-gone &optional (overs 20))
+  (multiple-value-bind (ovs balls) (floor overs-gone)
+	(declare (ignore ovs))
+	(if (= balls 0)
+		(- overs overs-gone)
+		(my-round (- overs overs-gone 0.4) 0.1))))
+
+(defun rpo-stats (chasing-score chasing-overs target &optional (overs 20))
+  (format t "~%Original rpo : ~5,2f" (/ target overs))
+  (format t "~%Current  rpo : ~5,2f" (get-rpo chasing-score chasing-overs))
+  (format t "~%Required rpo : ~5,2f" (get-rpo (- target chasing-score)
+											  (overs-left (- overs chasing-overs)))))
+(defun projected-score ())
+
+;; Calculate predicted runline amount
+
+(defun runline (score overs runline-overs)
+  (format t "~,2f" (calc-runline score overs runline-overs)))
+
+;; Find the equivalent runs-per-6 ball over score for a hundred score
+
+(defun hundred (score &optional (delivs 100))
+  (format t "~,2f" (rpo-from-deliveries score delivs)))
 
 ;; ***************************************************************
 
@@ -4257,4 +4275,5 @@ try renaming all relevant fns as ...2 to try to isolate the problem
 
 (defun load-dnb ()
   (setf *dnb* (import-csv "c:/mine/perl/football/data/dnb.csv")))
+
 
